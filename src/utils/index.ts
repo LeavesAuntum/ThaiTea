@@ -22,15 +22,23 @@ export function isAddress(value: any): string | false {
 const ETHERSCAN_PREFIXES: { [chainId in ChainId]: string } = {
   [ChainId.MAINNET]: '',
   [ChainId.BSCTESTNET]: 'testnet',
+  [ChainId.HECOMAINNET]: '',
+  [ChainId.HECOTESTNET]: 'testnet',
   [ChainId.ETHER_MAINNET]: '',
   [ChainId.ETHER_TESTNET]: 'testnet',
+  [ChainId.MATIC_MAINNET]: '',
+  [ChainId.MATIC_TESTNET]: 'testnet',
 }
 
 const EXPLORER_URLS: { [chainId in ChainId]: string } = {
   [ChainId.MAINNET]: 'bscscan.com',
   [ChainId.BSCTESTNET]: 'testnet.bscscan.com',
+  [ChainId.HECOMAINNET]: 'hecoinfo.com',
+  [ChainId.HECOTESTNET]: 'testnet.hecoinfo.com',
   [ChainId.ETHER_MAINNET]: 'etherscan.io',
   [ChainId.ETHER_TESTNET]: 'rinkeby.etherscan.io',
+  [ChainId.MATIC_MAINNET]: 'polygonscan.com',
+  [ChainId.MATIC_TESTNET]: 'mumbai.polygonscan.com',
 }
 
 export const useExplorerName = (chainId: ChainId) => {
@@ -39,8 +47,12 @@ export const useExplorerName = (chainId: ChainId) => {
   const EXPLORER_NAMES: { [chainId in ChainId]: string } = {
     [ChainId.MAINNET]: t('Binance Smart Chain'),
     [ChainId.BSCTESTNET]: t('Binance Smart Chain'),
+    [ChainId.HECOMAINNET]: t('Huobi ECO Chain'),
+    [ChainId.HECOTESTNET]: t('Huobi ECO Chain'),
     [ChainId.ETHER_MAINNET]: t('Ethereum Chain'),
     [ChainId.ETHER_TESTNET]: t('Ethereum Chain'),
+    [ChainId.MATIC_MAINNET]: t('Polygon Matic Chain'),
+    [ChainId.MATIC_TESTNET]: t('Polygon Matic Chain'),
   }
   const explorerName = EXPLORER_NAMES[chainId]
 
