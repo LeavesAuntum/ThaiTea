@@ -1,23 +1,22 @@
-import { ExternalProvider } from '@ethersproject/providers'
-import { ethers } from 'ethers'
-import { storeNetwork } from 'store/network/useStoreNetwork'
-import Web3 from 'web3'
-import { HttpProviderOptions } from 'web3-core-helpers'
+import Web3 from 'web3';
+import { HttpProviderOptions } from 'web3-core-helpers';
+import { AbiItem } from 'web3-utils';
+import { ContractOptions } from 'web3-eth-contract';
+import getRpcUrl from '../utils/getRpcUrl';
 
-// always return current
-export const getWeb3NoAccount = () => {
-  const { currentNetwork } = storeNetwork.getState()
-  const httpProviderOptions: HttpProviderOptions = { timeout: 10000 }
-  const httpProvider = new Web3.providers.HttpProvider(currentNetwork.rpcUrl, httpProviderOptions)
-  const web3NoAccount = new Web3(httpProvider)
-  return web3NoAccount
-}
+const RPC_URL = getRpcUrl();
+const httpProvider = new Web3.providers.HttpProvider(RPC_URL, { timeout: 10000 } as HttpProviderOptions);
 
-export const getEthersProvider = () => {
-  const web3: { currentProvider: unknown } = getWeb3NoAccount()
-  return new ethers.providers.Web3Provider(web3.currentProvider as ExternalProvider)
-}
+/**
+ * Provides a web3 instance using our own private provider httpProver
+ */
+const getWeb3 = () => {
+  const web3 = new Web3(httpProvider);
+  return web3;
+};
+const getContract = (abi: any, address: string, contractOptions?: ContractOptions) => {
+  const web3 = getWeb3();
+  return new web3.eth.Contract((abi as unknown) as AbiItem, address, contractOptions);
+};
 
-const web3NoAccount = getWeb3NoAccount()
-
-export default web3NoAccount
+export { getWeb3, getContract, httpProvider };

@@ -1,135 +1,118 @@
-import { useWeb3React } from '@web3-react/core'
-import { Toast, toastTypes } from 'alium-uikit/src'
-import BigNumber from 'bignumber.js'
-import { Team } from 'config/constants/types'
-import useRefresh from 'hooks/useRefresh'
-import { kebabCase } from 'lodash'
-import { useEffect, useMemo } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { fetchAchievements } from './achievements'
-import {
-  clear as clearToast,
-  fetchPoolsPublicDataAsync,
-  fetchPoolsUserDataAsync,
-  push as pushToast,
-  remove as removeToast,
-} from './actions'
-import { fetchProfile } from './profile'
-import { fetchTeam, fetchTeams } from './teams'
-import { AchievementState, Pool, ProfileState, State, TeamsState } from './types'
+import BigNumber from 'bignumber.js';
+import { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import useRefresh from '../hooks/useRefresh';
+import { fetchFarmsPublicDataAsync } from './actions';
+import { State, Farm, Pool } from './types';
+import { QuoteToken } from '../config/types';
 
-const ZERO = new BigNumber(0)
+const ZERO = new BigNumber(0);
 
 export const useFetchPublicData = () => {
-  const dispatch = useDispatch()
-  const { slowRefresh } = useRefresh()
+  const dispatch = useDispatch();
+  const { slowRefresh } = useRefresh();
   useEffect(() => {
-    dispatch(fetchPoolsPublicDataAsync())
-  }, [dispatch, slowRefresh])
-}
+    dispatch(fetchFarmsPublicDataAsync());
+    // dispatch(fetchPoolsPublicDataAsync())
+  }, [dispatch, slowRefresh]);
+};
+
+// Farms
+
+export const useFarms = (): Farm[] => {
+  const farms = useSelector((state: State) => state.farms.data);
+  return farms;
+};
+
+export const useFarmFromPid = (pid): Farm => {
+  const farm = useSelector((state: State) => state.farms.data.find((f) => f.pid === pid));
+  return farm;
+};
+
+export const useFarmFromSymbol = (lpSymbol: string): Farm => {
+  const farm = useSelector((state: State) => state.farms.data.find((f) => f.lpSymbol === lpSymbol));
+  return farm;
+};
+
+export const useFarmUser = (pid) => {
+  const farm = useFarmFromPid(pid);
+
+  return {
+    allowance: farm.userData ? new BigNumber(farm.userData.allowance) : new BigNumber(0),
+    tokenBalance: farm.userData ? new BigNumber(farm.userData.tokenBalance) : new BigNumber(0),
+    stakedBalance: farm.userData ? new BigNumber(farm.userData.stakedBalance) : new BigNumber(0),
+    earnings: farm.userData ? new BigNumber(farm.userData.earnings) : new BigNumber(0),
+  };
+};
 
 // Pools
 
 export const usePools = (account): Pool[] => {
-  const { fastRefresh } = useRefresh()
-  const dispatch = useDispatch()
+  const { fastRefresh } = useRefresh();
+  const dispatch = useDispatch();
   useEffect(() => {
     if (account) {
-      dispatch(fetchPoolsUserDataAsync(account))
+      dispatch(fetchPoolsUserDataAsync(account));
     }
-  }, [account, dispatch, fastRefresh])
+  }, [account, dispatch, fastRefresh]);
 
-  const pools = useSelector((state: State) => state.pools.data)
-  return pools
-}
+  const pools = useSelector((state: State) => state.pools.data);
+  return pools;
+};
 
 export const usePoolFromPid = (sousId): Pool => {
-  const pool = useSelector((state: State) => state.pools.data.find((p) => p.sousId === sousId))
-  return pool
-}
+  const pool = useSelector((state: State) => state.pools.data.find((p) => p.sousId === sousId));
+  return pool;
+};
 
-// Toasts
-export const useToast = () => {
-  const dispatch = useDispatch()
-  const helpers = useMemo(() => {
-    const push = (toast: Toast) => dispatch(pushToast(toast))
+// Prices
 
-    return {
-      toastError: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.DANGER, title, description })
-      },
-      toastInfo: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.INFO, title, description })
-      },
-      toastSuccess: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.SUCCESS, title, description })
-      },
-      toastWarning: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.WARNING, title, description })
-      },
-      push,
-      remove: (id: string) => dispatch(removeToast(id)),
-      clear: () => dispatch(clearToast()),
+
+
+export const usePriceEthBusd = (): BigNumber => new BigNumber(1800);
+
+export const usePriceSaltBusd = (): BigNumber => {
+  // const pid = 1 // CAKE-BNB LP
+  // const bnbPriceUSD = usePriceBnbBusd()
+  // const farm = useFarmFromPid(pid)
+  // return farm.tokenPriceVsQuote ? bnbPriceUSD.times(farm.tokenPriceVsQuote) : ZERO
+  const pid = 0; // SALT-BUSD LP
+  const farm = useFarmFromPid(pid);
+  return farm.tokenPriceVsQuote ? new BigNumber(farm.tokenPriceVsQuote) : ZERO;
+};
+
+export const useTotalValue = (): BigNumber => {
+  const farms = useFarms();
+  const ethPrice = usePriceEthBusd();
+  const saltPrice = usePriceSaltBusd();
+
+  // console.log('bnb value', bnbPrice.toString())
+  // console.log('eth value', ethPrice.toString())
+  // console.log('salt value', saltPrice.toString())
+
+  let value = new BigNumber(0);
+  for (let i = 0; i < farms.length; i++) {
+    const farm = farms[i];
+    // if (farm.lpSymbol !== 'DINO') {
+    if (farm.lpTotalInQuoteToken) {
+      let val;
+      if (farm.quoteTokenSymbol === QuoteToken.BNB) {
+        val = bnbPrice.times(farm.lpTotalInQuoteToken);
+      } else if (farm.quoteTokenSymbol === QuoteToken.CAKE) {
+        val = saltPrice.times(farm.lpTotalInQuoteToken);
+      } else if (farm.quoteTokenSymbol === QuoteToken.ETH) {
+        val = ethPrice.times(farm.lpTotalInQuoteToken);
+      } else {
+        val = farm.lpTotalInQuoteToken;
+      }
+
+      // console.log(`farm ${farm.lpSymbol} is ${val}`)
+      value = value.plus(val);
     }
-  }, [dispatch])
-
-  return helpers
-}
-
-// Profile
-
-export const useFetchProfile = () => {
-  const { account } = useWeb3React()
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    dispatch(fetchProfile(account))
-  }, [account, dispatch])
-}
-
-export const useProfile = () => {
-  const { isInitialized, isLoading, data, hasRegistered }: ProfileState = useSelector((state: State) => state.profile)
-  return { profile: data, hasProfile: isInitialized && hasRegistered, isInitialized, isLoading }
-}
-
-// Teams
-
-export const useTeam = (id: number) => {
-  const team: Team = useSelector((state: State) => state.teams.data[id])
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    dispatch(fetchTeam(id))
-  }, [id, dispatch])
-
-  return team
-}
-
-export const useTeams = () => {
-  const { isInitialized, isLoading, data }: TeamsState = useSelector((state: State) => state.teams)
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    dispatch(fetchTeams())
-  }, [dispatch])
-
-  return { teams: data, isInitialized, isLoading }
-}
-
-// Achievements
-
-export const useFetchAchievements = () => {
-  const { account } = useWeb3React()
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    if (account) {
-      dispatch(fetchAchievements(account))
-    }
-  }, [account, dispatch])
-}
-
-export const useAchievements = () => {
-  const achievements: AchievementState['data'] = useSelector((state: State) => state.achievements.data)
-  return achievements
-}
+    // } else {
+    //   console.log(`lpTotalInQuoteToken is ${farm.lpTotalInQuoteToken}`)
+    // }
+  }
+  // console.log('total value', value.toString())
+  return value;
+};

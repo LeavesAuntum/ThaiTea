@@ -1,48 +1,22 @@
-import addresses from 'config/constants/contracts'
-import { Address } from 'config/constants/types'
-import { storeNetwork } from 'store/network/useStoreNetwork'
+import addresses from '../config/contracts';
 
-export const getAddress = (address: Address): string => {
-  const mainNetChainId = 56
-  const { currentChainId } = storeNetwork.getState()
-  return address[currentChainId] ? address[currentChainId] : address[mainNetChainId]
-}
+const chainId = process.env.REACT_APP_CHAIN_ID;
 
-export const getCakeAddress = () => {
-  return getAddress(addresses.cake)
-}
-export const getMasterChefAddress = () => {
-  return getAddress(addresses.masterChef)
-}
-export const getFarmingTicketWindow = () => {
-  return getAddress(addresses.farmingTicketWindow)
-}
+export const getFrenAddress = () => {
+  return addresses.fren[chainId];
+};
+export const getFrenFarm = () => {
+  return addresses.FrenFarm[chainId];
+};
 export const getMulticallAddress = () => {
-  return getAddress(addresses.mulltiCall)
-}
+  return addresses.mulltiCall[chainId];
+};
 export const getWbnbAddress = () => {
-  return getAddress(addresses.wbnb)
-}
+  return addresses.wbnb[chainId];
+};
 export const getLotteryAddress = () => {
-  return getAddress(addresses.lottery)
-}
+  return addresses.lottery[chainId];
+};
 export const getLotteryTicketAddress = () => {
-  return getAddress(addresses.lotteryNFT)
-}
-export const getPancakeProfileAddress = () => {
-  return getAddress(addresses.pancakeProfile)
-}
-export const getPancakeRabbitsAddress = () => {
-  return getAddress(addresses.pancakeRabbits)
-}
-export const getRabbitMintingFarmAddress = () => {
-  return getAddress(addresses.rabbitMintingFarm)
-}
-export const getClaimRefundAddress = () => {
-  return getAddress(addresses.claimRefund)
-}
-export const getPointCenterIfoAddress = () => {
-  return getAddress(addresses.pointCenterIfo)
-}
-
-export const getShpAddress = () => getAddress(addresses.shp)
+  return addresses.lotteryNFT[chainId];
+};
