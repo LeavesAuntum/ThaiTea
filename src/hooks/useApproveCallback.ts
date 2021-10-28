@@ -1,14 +1,14 @@
-import { CurrencyAmount, TokenAmount, Trade } from '@alium-official/sdk'
 import { MaxUint256 } from '@ethersproject/constants'
 import { TransactionResponse } from '@ethersproject/providers'
-import { useTokenAllowance } from 'data/Allowances'
+import { Trade, TokenAmount, CurrencyAmount, ETHER } from '@rimauswap-sdk/sdk'
 import { useCallback, useMemo } from 'react'
-import { Field } from 'state/swap/actions'
-import { useHasPendingApproval, useTransactionAdder } from 'state/transactions/hooks'
-import { storeNetwork } from 'store/network/useStoreNetwork'
-import { calculateGasMargin, calculateGasPrice } from 'utils'
-import { computeSlippageAdjustedAmounts } from 'utils/prices'
-import { useActiveWeb3React } from './index'
+import useActiveWeb3React from 'hooks/useActiveWeb3React'
+import { ROUTER_ADDRESS } from '../config/constants'
+import useTokenAllowance from './useTokenAllowance'
+import { Field } from '../state/swap/actions'
+import { useTransactionAdder, useHasPendingApproval } from '../state/transactions/hooks'
+import { computeSlippageAdjustedAmounts } from '../utils/prices'
+import { calculateGasMargin } from '../utils'
 import { useTokenContract } from './useContract'
 
 export enum ApprovalState {
@@ -19,25 +19,19 @@ export enum ApprovalState {
 }
 
 // returns a variable indicating the state of the approval and a function which approves if necessary or early returns
-
-type useApproveCallback = (amountToApprove?: CurrencyAmount, spender?: string) => [ApprovalState, () => Promise<void>]
-
-export const useApproveCallback: useApproveCallback = (amountToApprove, spender) => {
-  const { currentNetwork } = storeNetwork.getState()
-  const { nativeCurrency } = currentNetwork.providerParams
+export function useApproveCallback(
+  amountToApprove?: CurrencyAmount,
+  spender?: string,
+): [ApprovalState, () => Promise<void>] {
   const { account } = useActiveWeb3React()
-
   const token = amountToApprove instanceof TokenAmount ? amountToApprove.token : undefined
   const currentAllowance = useTokenAllowance(token, account ?? undefined, spender)
   const pendingApproval = useHasPendingApproval(token?.address, spender)
-  const tokenContract = useTokenContract(token?.address)
-  const addTransaction = useTransactionAdder()
 
   // check the current approval status
   const approvalState: ApprovalState = useMemo(() => {
     if (!amountToApprove || !spender) return ApprovalState.UNKNOWN
-    if (amountToApprove?.currency?.symbol === nativeCurrency?.symbol) return ApprovalState.APPROVED
-
+    if (amountToApprove.currency === ETHER) return ApprovalState.APPROVED
     // we might not have enough data to know whether or not we need to approve
     if (!currentAllowance) return ApprovalState.UNKNOWN
 
@@ -47,7 +41,10 @@ export const useApproveCallback: useApproveCallback = (amountToApprove, spender)
         ? ApprovalState.PENDING
         : ApprovalState.NOT_APPROVED
       : ApprovalState.APPROVED
-  }, [amountToApprove, currentAllowance, nativeCurrency?.symbol, pendingApproval, spender])
+  }, [amountToApprove, currentAllowance, pendingApproval, spender])
+
+  const tokenContract = useTokenContract(token?.address)
+  const addTransaction = useTransactionAdder()
 
   const approve = useCallback(async (): Promise<void> => {
     if (approvalState !== ApprovalState.NOT_APPROVED) {
@@ -81,12 +78,10 @@ export const useApproveCallback: useApproveCallback = (amountToApprove, spender)
       return tokenContract.estimateGas.approve(spender, amountToApprove.raw.toString())
     })
 
-    const gasPrice = await calculateGasPrice(tokenContract.provider)
-
+    // eslint-disable-next-line consistent-return
     return tokenContract
       .approve(spender, useExact ? amountToApprove.raw.toString() : MaxUint256, {
         gasLimit: calculateGasMargin(estimatedGas),
-        gasPrice,
       })
       .then((response: TransactionResponse) => {
         addTransaction(response, {
@@ -105,10 +100,10 @@ export const useApproveCallback: useApproveCallback = (amountToApprove, spender)
 
 // wraps useApproveCallback in the context of a swap
 export function useApproveCallbackFromTrade(trade?: Trade, allowedSlippage = 0) {
-  const { currentNetwork } = storeNetwork.getState()
   const amountToApprove = useMemo(
     () => (trade ? computeSlippageAdjustedAmounts(trade, allowedSlippage)[Field.INPUT] : undefined),
     [trade, allowedSlippage],
   )
-  return useApproveCallback(amountToApprove, currentNetwork.address.router)
+
+  return useApproveCallback(amountToApprove, ROUTER_ADDRESS)
 }

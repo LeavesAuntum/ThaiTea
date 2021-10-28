@@ -1,14 +1,12 @@
-import { Currency, CurrencyAmount, Fraction, Percent } from '@alium-official/sdk'
-import { Button } from 'alium-uikit/src'
-import { RowBetween, RowFixed } from 'components/Row'
-import { TYPE } from 'components/Shared'
-import { Field } from 'state/mint/actions'
-import { toSignificantCurrency } from 'utils/currency/toSignificantCurrency'
-import CurrencyLogo from '../../components/CurrencyLogo'
+import { Currency, CurrencyAmount, Fraction, Percent } from '@rimauswap-sdk/sdk'
+import React from 'react'
+import { Button, Text } from '@rimauswap-libs/uikit'
+import { useTranslation } from 'contexts/Localization'
+import { RowBetween, RowFixed } from '../../components/Layout/Row'
+import { CurrencyLogo } from '../../components/Logo'
+import { Field } from '../../state/mint/actions'
 
-const { body: Body } = TYPE
-
-export function ConfirmAddModalBottom({
+function ConfirmAddModalBottom({
   noLiquidity,
   price,
   currencies,
@@ -23,51 +21,44 @@ export function ConfirmAddModalBottom({
   poolTokenPercentage?: Percent
   onAdd: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <>
       <RowBetween>
-        <Body style={{ color: '#8990A5', padding: '8px', fontSize: '11px' }}>
-          {currencies[Field.CURRENCY_A]?.symbol} Deposited
-        </Body>
-        <RowFixed style={{ padding: '8px' }}>
+        <Text>{t('%asset% Deposited', { asset: currencies[Field.CURRENCY_A]?.symbol })}</Text>
+        <RowFixed>
           <CurrencyLogo currency={currencies[Field.CURRENCY_A]} style={{ marginRight: '8px' }} />
-          <Body style={{ fontWeight: '500', fontSize: '11px' }}>
-            {toSignificantCurrency(parsedAmounts[Field.CURRENCY_A])}
-          </Body>
+          <Text>{parsedAmounts[Field.CURRENCY_A]?.toSignificant(6)}</Text>
         </RowFixed>
       </RowBetween>
-      <RowBetween style={{ backgroundColor: '#F4F5FA', borderRadius: '6px', padding: '8px' }}>
-        <Body style={{ color: '#8990A5', fontSize: '11px' }}>{currencies[Field.CURRENCY_B]?.symbol} Deposited</Body>
+      <RowBetween>
+        <Text>{t('%asset% Deposited', { asset: currencies[Field.CURRENCY_B]?.symbol })}</Text>
         <RowFixed>
           <CurrencyLogo currency={currencies[Field.CURRENCY_B]} style={{ marginRight: '8px' }} />
-          <Body style={{ fontWeight: '500', fontSize: '11px' }}>
-            {toSignificantCurrency(parsedAmounts[Field.CURRENCY_B])}
-          </Body>
+          <Text>{parsedAmounts[Field.CURRENCY_B]?.toSignificant(6)}</Text>
         </RowFixed>
       </RowBetween>
-      <RowBetween style={{ paddingRight: '8px' }}>
-        <Body style={{ color: '#8990A5', padding: '0 8px', fontSize: '11px' }}>Rates</Body>
-        <Body style={{ fontWeight: '500', fontSize: '11px' }}>
+      <RowBetween>
+        <Text>{t('Rates')}</Text>
+        <Text>
           {`1 ${currencies[Field.CURRENCY_A]?.symbol} = ${price?.toSignificant(4)} ${
             currencies[Field.CURRENCY_B]?.symbol
           }`}
-        </Body>
+        </Text>
       </RowBetween>
-      <RowBetween style={{ justifyContent: 'flex-end', paddingRight: '8px' }}>
-        <Body style={{ fontWeight: '500', fontSize: '11px' }}>
+      <RowBetween style={{ justifyContent: 'flex-end' }}>
+        <Text>
           {`1 ${currencies[Field.CURRENCY_B]?.symbol} = ${price?.invert().toSignificant(4)} ${
             currencies[Field.CURRENCY_A]?.symbol
           }`}
-        </Body>
+        </Text>
       </RowBetween>
-      <RowBetween style={{ backgroundColor: '#F4F5FA', borderRadius: '6px', padding: '8px' }}>
-        <Body style={{ color: '#8990A5', fontSize: '11px' }}>Share of Pool:</Body>
-        <Body style={{ fontWeight: '500', fontSize: '11px' }}>
-          {noLiquidity ? '100' : poolTokenPercentage?.toSignificant(4)}%
-        </Body>
+      <RowBetween>
+        <Text>{t('Share of Pool')}:</Text>
+        <Text>{noLiquidity ? '100' : poolTokenPercentage?.toSignificant(4)}%</Text>
       </RowBetween>
-      <Button mt='10px' mb='20px' onClick={onAdd} fullwidth>
-        {noLiquidity ? 'Create Pool & Supply' : 'Confirm Supply'}
+      <Button onClick={onAdd} mt="20px">
+        {noLiquidity ? t('Create Pool & Supply') : t('Confirm Supply')}
       </Button>
     </>
   )

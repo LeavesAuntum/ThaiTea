@@ -1,123 +1,94 @@
-import { Currency, Token } from '@alium-official/sdk'
-import { CloseIcon, IconButton, Text } from 'alium-uikit/src'
-import { useActiveWeb3React } from 'hooks'
-import { useAllTokens, useToken } from 'hooks/Tokens'
-import { useTranslation } from 'next-i18next'
-// import { KeyboardEvent, RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import AutoSizer from 'react-virtualized-auto-sizer'
+import React, { KeyboardEvent, RefObject, useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { Currency, ETHER, Token } from '@rimauswap-sdk/sdk'
+import { Text, Input, Box, Svg } from '@rimauswap-libs/uikit'
+import { useTranslation } from 'contexts/Localization'
 import { FixedSizeList } from 'react-window'
-// import { useSelectedListInfo } from 'state/lists/hooks'
-import { useStoreNetwork } from 'store/network/useStoreNetwork'
-// import styled, { ThemeContext } from 'styled-components'
-import styled from 'styled-components'
-import { isAddress } from 'utils'
-import { arrayElementToTop } from 'utils/arrayElementToTop'
-// import Card from '../Card'
-import Column from '../Column'
-// import ListLogo from '../ListLogo'
-import QuestionHelper from '../QuestionHelper'
-// import Row, { RowBetween } from '../Row'
-import { RowBetween } from '../Row'
-// import { LinkStyledButton, TYPE } from '../Shared'
-// import { TYPE } from '../Shared'
-import TranslatedText from '../TranslatedText'
+import { useAudioModeManager } from 'state/user/hooks'
+import useDebounce from 'hooks/useDebounce'
+import useActiveWeb3React from 'hooks/useActiveWeb3React'
+import { useAllTokens, useToken, useIsUserAddedToken, useFoundOnInactiveList } from '../../hooks/Tokens'
+import { isAddress } from '../../utils'
+import Column, { AutoColumn } from '../Layout/Column'
+import Row from '../Layout/Row'
 import CommonBases from './CommonBases'
 import CurrencyList from './CurrencyList'
-import { filterTokens } from './filtering'
-import SortButton from './SortButton'
-import { useTokenComparator } from './sorting'
-import { PaddedColumn, SearchInput, Separator } from './styleds'
+import { filterTokens, useSortedTokensByQuery } from './filtering'
+import useTokenComparator from './sorting'
 
-// const { main: Main } = TYPE
+import ImportRow from './ImportRow'
 
 interface CurrencySearchProps {
-  isOpen: boolean
-  onDismiss: () => void
   selectedCurrency?: Currency | null
   onCurrencySelect: (currency: Currency) => void
   otherSelectedCurrency?: Currency | null
   showCommonBases?: boolean
-  onChangeList: () => void
-  currencyList?: any
+  showImportView: () => void
+  setImportToken: (token: Token) => void
 }
 
-export function CurrencySearch({
+const swapSound = new Audio('swap.mp3')
+
+function CurrencySearch({
   selectedCurrency,
   onCurrencySelect,
   otherSelectedCurrency,
   showCommonBases,
-  onDismiss,
-  isOpen,
-  onChangeList,
-  currencyList,
+  showImportView,
+  setImportToken,
 }: CurrencySearchProps) {
-  const currentNetwork = useStoreNetwork((state) => state.currentNetwork)
-  const nativeSymbol = currentNetwork?.providerParams?.nativeCurrency?.symbol?.toLowerCase() || 'bnb'
   const { t } = useTranslation()
   const { chainId } = useActiveWeb3React()
-  // const theme = useContext(ThemeContext)
 
+  // refs for fixed size lists
   const fixedList = useRef<FixedSizeList>()
+
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [invertSearchOrder, setInvertSearchOrder] = useState<boolean>(false)
-  const globalTokenList = useAllTokens()
-  const allTokens = currencyList || globalTokenList
+  const debouncedQuery = useDebounce(searchQuery, 200)
+
+  const [invertSearchOrder] = useState<boolean>(false)
+
+  const allTokens = useAllTokens()
 
   // if they input an address, use it
-  const isAddressSearch = isAddress(searchQuery)
-  const searchToken = useToken(searchQuery)
+  const searchToken = useToken(debouncedQuery)
+  const searchTokenIsAdded = useIsUserAddedToken(searchToken)
+
+  const [audioPlay] = useAudioModeManager()
 
   const showETH: boolean = useMemo(() => {
-    const s = searchQuery.toLowerCase().trim()
-    if (currencyList) return false
-    // input includes native symbol
-    return s !== '' && !nativeSymbol.indexOf(s)
-  }, [currencyList, searchQuery])
+    const s = debouncedQuery.toLowerCase().trim()
+    return s === '' || s === 'b' || s === 'bn' || s === 'bnb'
+  }, [debouncedQuery])
 
   const tokenComparator = useTokenComparator(invertSearchOrder)
 
   const filteredTokens: Token[] = useMemo(() => {
-    if (isAddressSearch) return searchToken ? [searchToken] : []
-    return filterTokens(Object.values(allTokens), searchQuery)
-  }, [isAddressSearch, searchToken, allTokens, searchQuery])
+    return filterTokens(Object.values(allTokens), debouncedQuery)
+  }, [allTokens, debouncedQuery])
 
-  const filteredSortedTokens: Token[] = useMemo(() => {
-    if (searchToken) return [searchToken]
-    const sorted = filteredTokens.sort(tokenComparator)
-    const symbolMatch = searchQuery
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((s) => s.length > 0)
-    if (symbolMatch.length > 1) return sorted
+  const sortedTokens: Token[] = useMemo(() => {
+    return filteredTokens.sort(tokenComparator)
+  }, [filteredTokens, tokenComparator])
 
-    const sortedTokens = [
-      ...(searchToken ? [searchToken] : []),
-      // sort any exact symbol matches first
-      ...sorted.filter((token) => token.symbol?.toLowerCase() === symbolMatch[0]),
-      ...sorted.filter((token) => token.symbol?.toLowerCase() !== symbolMatch[0]),
-    ]
-
-    const conditionForTokenToTop = (el: Token) => el.symbol === 'ALM'
-    const sortedWithAlmFirst: Token[] = arrayElementToTop(conditionForTokenToTop, sortedTokens)
-    return sortedWithAlmFirst
-  }, [filteredTokens, searchQuery, searchToken, tokenComparator])
+  const filteredSortedTokens = useSortedTokensByQuery(sortedTokens, debouncedQuery)
 
   const handleCurrencySelect = useCallback(
     (currency: Currency) => {
       onCurrencySelect(currency)
-      onDismiss()
+      if (audioPlay) {
+        swapSound.play()
+      }
     },
-    [onDismiss, onCurrencySelect],
+    [audioPlay, onCurrencySelect],
   )
-
-  // clear the input on open
-  useEffect(() => {
-    if (isOpen) setSearchQuery('')
-  }, [isOpen])
 
   // manage focus on modal show
   const inputRef = useRef<HTMLInputElement>()
+
+  useEffect(() => {
+    inputRef.current.focus()
+  }, [])
+
   const handleInput = useCallback((event) => {
     const input = event.target.value
     const checksummedInput = isAddress(input)
@@ -128,12 +99,12 @@ export function CurrencySearch({
   const handleEnter = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
-        const s = searchQuery.toLowerCase().trim()
-        if (s === nativeSymbol) {
-          handleCurrencySelect(currentNetwork.providerParams.nativeCurrency)
+        const s = debouncedQuery.toLowerCase().trim()
+        if (s === 'bnb') {
+          handleCurrencySelect(ETHER)
         } else if (filteredSortedTokens.length > 0) {
           if (
-            filteredSortedTokens[0].symbol?.toLowerCase() === searchQuery.trim().toLowerCase() ||
+            filteredSortedTokens[0].symbol?.toLowerCase() === debouncedQuery.trim().toLowerCase() ||
             filteredSortedTokens.length === 1
           ) {
             handleCurrencySelect(filteredSortedTokens[0])
@@ -141,119 +112,68 @@ export function CurrencySearch({
         }
       }
     },
-    [filteredSortedTokens, handleCurrencySelect, searchQuery],
+    [filteredSortedTokens, handleCurrencySelect, debouncedQuery],
   )
 
-  // const selectedListInfo = useSelectedListInfo()
+  // if no results on main list, show option to expand into inactive
+  const inactiveTokens = useFoundOnInactiveList(debouncedQuery)
+  const filteredInactiveTokens: Token[] = useSortedTokensByQuery(inactiveTokens, debouncedQuery)
 
   return (
-    <Column style={{ width: '100%', flex: '1 1' }}>
-      <PaddedColumn gap='14px'>
-        <RowBetween>
-          <Text style={{ display: 'flex', alignItems: 'center', fontSize: '18px' }} bold>
-            {t('Select a token')}
-            <QuestionHelper
-              text={t('Find a token by searching for its name or symbol or by pasting its address below.')}
+    <>
+      <div>
+        <AutoColumn gap="16px">
+          <Row style={{position:'relative'}}>
+            <Svg style={{position:'absolute', top:15, left:10, opacity:0.5}} viewBox="0 0 24 24">
+              <path d="M15.5 13.9996H14.71L14.43 13.7296C15.63 12.3296 16.25 10.4196 15.91 8.38965C15.44 5.60965 13.12 3.38965 10.32 3.04965C6.09001 2.52965 2.53002 6.08965 3.05002 10.3196C3.39002 13.1196 5.61002 15.4396 8.39002 15.9096C10.42 16.2496 12.33 15.6296 13.73 14.4296L14 14.7096V15.4996L18.25 19.7496C18.66 20.1596 19.33 20.1596 19.74 19.7496C20.15 19.3396 20.15 18.6696 19.74 18.2596L15.5 13.9996ZM9.50002 13.9996C7.01002 13.9996 5.00002 11.9896 5.00002 9.49965C5.00002 7.00965 7.01002 4.99965 9.50002 4.99965C11.99 4.99965 14 7.00965 14 9.49965C14 11.9896 11.99 13.9996 9.50002 13.9996Z" />
+            </Svg>
+            <Input
+              id="token-search-input"
+              placeholder={t('Search name or paste address')}
+              scale="lg"
+              autoComplete="off"
+              value={searchQuery}
+              style={{paddingLeft:35}}
+              ref={inputRef as RefObject<HTMLInputElement>}
+              onChange={handleInput}
+              onKeyDown={handleEnter}
             />
-          </Text>
-          <IconButton buttonType='close' buttonSize='40px' onClick={onDismiss}>
-            <CloseIcon />
-          </IconButton>
-        </RowBetween>
-        <Separator />
-        <StyledSearchInput>
-          <SearchInput
-            type='text'
-            id='token-search-input'
-            placeholder={t('Search name or paste address')}
-            value={searchQuery}
-            ref={inputRef as RefObject<HTMLInputElement>}
-            onChange={handleInput}
-            onKeyDown={handleEnter}
-          />
-          <StyledRemoveIcon>
-            {searchQuery.length > 0 && <CloseIcon onClick={() => setSearchQuery('')} />}
-          </StyledRemoveIcon>
-        </StyledSearchInput>
-        {showCommonBases && (
-          <CommonBases chainId={chainId} onSelect={handleCurrencySelect} selectedCurrency={selectedCurrency} />
-        )}
-        <StyledRowBetween>
-          <RowBetween>
-            <Text fontSize='16px' bold>
-              <TranslatedText translationId={126}>{t('Token name')}</TranslatedText>
-            </Text>
-            <SortButton ascending={invertSearchOrder} toggleSortOrder={() => setInvertSearchOrder((iso) => !iso)} />
-          </RowBetween>
-        </StyledRowBetween>
-      </PaddedColumn>
-
-      <StyledCurrencyList>
-        <AutoSizer disableWidth>
-          {({ height }) => (
+          </Row>
+          {showCommonBases && (
+            <CommonBases chainId={chainId} onSelect={handleCurrencySelect} selectedCurrency={selectedCurrency} />
+          )}
+        </AutoColumn>
+        {searchToken && !searchTokenIsAdded ? (
+          <Column style={{ padding: '20px 0', height: '100%' }}>
+            <ImportRow token={searchToken} showImportView={showImportView} setImportToken={setImportToken} />
+          </Column>
+        ) : filteredSortedTokens?.length > 0 || filteredInactiveTokens?.length > 0 ? (
+          <Box margin="24px -24px">
             <CurrencyList
-              height={height}
+              height={390}
               showETH={showETH}
-              currencies={filteredSortedTokens}
+              currencies={
+                filteredInactiveTokens ? filteredSortedTokens.concat(filteredInactiveTokens) : filteredSortedTokens
+              }
+              breakIndex={inactiveTokens && filteredSortedTokens ? filteredSortedTokens.length : undefined}
               onCurrencySelect={handleCurrencySelect}
               otherCurrency={otherSelectedCurrency}
               selectedCurrency={selectedCurrency}
               fixedListRef={fixedList}
+              showImportView={showImportView}
+              setImportToken={setImportToken}
             />
-          )}
-        </AutoSizer>
-      </StyledCurrencyList>
-
-      {/*
-         <Separator />
-          <Card>
-            <RowBetween>
-              {selectedListInfo.current ? (
-                <Row>
-                  {selectedListInfo.current.logoURI ? (
-                    <ListLogo
-                      style={{ marginRight: 12 }}
-                      logoURI={selectedListInfo.current.logoURI}
-                      alt={`${selectedListInfo.current.name} list logo`}
-                    />
-                  ) : null}
-                  <Main id='currency-search-selected-list-name'>{selectedListInfo.current.name}</Main>
-                </Row>
-              ) : null}
-              <LinkStyledButton
-                style={{ fontWeight: 500, color: theme.colors.textSubtle, fontSize: 16 }}
-                onClick={onChangeList}
-                id='currency-search-change-list-button'
-              >
-                {selectedListInfo.current ? 'Change' : 'Select a list'}
-              </LinkStyledButton>
-            </RowBetween>
-          </Card>
-      */}
-    </Column>
+          </Box>
+        ) : (
+          <Column style={{ padding: '20px', height: '100%' }}>
+            <Text color="textSubtle" textAlign="center" mb="20px">
+              {t('No results found.')}
+            </Text>
+          </Column>
+        )}
+      </div>
+    </>
   )
 }
 
 export default CurrencySearch
-
-// styles
-
-const StyledRowBetween = styled.div`
-  padding: 0 22px 2px 22px;
-`
-
-const StyledCurrencyList = styled.div`
-  flex: 1;
-  padding-left: 16px;
-`
-
-const StyledSearchInput = styled.div`
-  position: relative;
-`
-
-const StyledRemoveIcon = styled.div`
-  position: absolute;
-  top: 15px;
-  right: 40px;
-  cursor: pointer;
-`

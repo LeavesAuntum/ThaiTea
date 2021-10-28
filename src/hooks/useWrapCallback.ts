@@ -1,11 +1,9 @@
-import { Currency, currencyEquals, WETH } from '@alium-official/sdk'
+import { Currency, currencyEquals, ETHER, WETH } from '@rimauswap-sdk/sdk'
 import { useMemo } from 'react'
-import { tryParseAmount } from 'state/swap/hooks'
-import { useTransactionAdder } from 'state/transactions/hooks'
-import { useCurrencyBalance } from 'state/wallet/hooks'
-import { storeNetwork } from 'store/network/useStoreNetwork'
-import { toSignificantCurrency } from 'utils/currency/toSignificantCurrency'
-import { useActiveWeb3React } from './index'
+import useActiveWeb3React from 'hooks/useActiveWeb3React'
+import { tryParseAmount } from '../state/swap/hooks'
+import { useTransactionAdder } from '../state/transactions/hooks'
+import { useCurrencyBalance } from '../state/wallet/hooks'
 import { useWETHContract } from './useContract'
 
 export enum WrapType {
@@ -26,16 +24,11 @@ export default function useWrapCallback(
   outputCurrency: Currency | undefined,
   typedValue: string | undefined,
 ): { wrapType: WrapType; execute?: undefined | (() => Promise<void>); inputError?: string } {
-  const { nativeCurrency } = storeNetwork.getState().currentNetwork.providerParams
   const { chainId, account } = useActiveWeb3React()
   const wethContract = useWETHContract()
   const balance = useCurrencyBalance(account ?? undefined, inputCurrency)
-
   // we can always parse the amount typed as the input currency, since wrapping is 1:1
-  const inputAmount = useMemo(
-    () => tryParseAmount(chainId, typedValue, inputCurrency),
-    [chainId, inputCurrency, typedValue],
-  )
+  const inputAmount = useMemo(() => tryParseAmount(typedValue, inputCurrency), [inputCurrency, typedValue])
   const addTransaction = useTransactionAdder()
 
   return useMemo(() => {
@@ -43,7 +36,7 @@ export default function useWrapCallback(
 
     const sufficientBalance = inputAmount && balance && !balance.lessThan(inputAmount)
 
-    if (inputCurrency === nativeCurrency && currencyEquals(WETH[chainId], outputCurrency)) {
+    if (inputCurrency === ETHER && currencyEquals(WETH[chainId], outputCurrency)) {
       return {
         wrapType: WrapType.WRAP,
         execute:
@@ -51,7 +44,7 @@ export default function useWrapCallback(
             ? async () => {
                 try {
                   const txReceipt = await wethContract.deposit({ value: `0x${inputAmount.raw.toString(16)}` })
-                  addTransaction(txReceipt, { summary: `Wrap ${toSignificantCurrency(inputAmount)} BNB to WBNB` })
+                  addTransaction(txReceipt, { summary: `Wrap ${inputAmount.toSignificant(6)} BNB to WBNB` })
                 } catch (error) {
                   console.error('Could not deposit', error)
                 }
@@ -60,7 +53,7 @@ export default function useWrapCallback(
         inputError: sufficientBalance ? undefined : 'Insufficient BNB balance',
       }
     }
-    if (currencyEquals(WETH[chainId], inputCurrency) && outputCurrency === nativeCurrency) {
+    if (currencyEquals(WETH[chainId], inputCurrency) && outputCurrency === ETHER) {
       return {
         wrapType: WrapType.UNWRAP,
         execute:
@@ -68,7 +61,7 @@ export default function useWrapCallback(
             ? async () => {
                 try {
                   const txReceipt = await wethContract.withdraw(`0x${inputAmount.raw.toString(16)}`)
-                  addTransaction(txReceipt, { summary: `Unwrap ${toSignificantCurrency(inputAmount)} WBNB to BNB` })
+                  addTransaction(txReceipt, { summary: `Unwrap ${inputAmount.toSignificant(6)} WBNB to BNB` })
                 } catch (error) {
                   console.error('Could not withdraw', error)
                 }

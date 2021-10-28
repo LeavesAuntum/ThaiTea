@@ -1,9 +1,7 @@
-import { Currency, Token } from '@alium-official/sdk'
-import { storeNetwork } from 'store/network/useStoreNetwork'
+import { Currency, ETHER, Token } from '@rimauswap-sdk/sdk'
 
 export function currencyId(currency: Currency): string {
-  const { nativeCurrency } = storeNetwork.getState().currentNetwork.providerParams
-  if (currency === nativeCurrency) return 'ETH'
+  if (currency === ETHER) return 'BNB'
   if (currency instanceof Token) return currency.address
   throw new Error('invalid currency')
 }

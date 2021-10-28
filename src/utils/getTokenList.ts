@@ -1,12 +1,10 @@
-import { ChainId } from '@alium-official/sdk'
+/* eslint-disable no-continue */
+/* eslint-disable no-await-in-loop */
 import { TokenList } from '@uniswap/token-lists'
 import schema from '@uniswap/token-lists/src/tokenlist.schema.json'
 import Ajv from 'ajv'
-import defaultTokenJson from 'config/tokens'
-// bakeryswap defaultTokenJson
-import { DEFAULT_TOKEN_LIST_URL } from 'constants/lists'
 import contenthashToUri from './contenthashToUri'
-import { parseENSAddress } from './parseENSAddress'
+import { parseENSAddress } from './ENS/parseENSAddress'
 import uriToHttp from './uriToHttp'
 
 const tokenListValidator = new Ajv({ allErrors: true }).compile(schema)
@@ -17,15 +15,10 @@ const tokenListValidator = new Ajv({ allErrors: true }).compile(schema)
  * @param resolveENSContentHash resolves an ens name to a contenthash
  */
 export default async function getTokenList(
-  chainId: ChainId,
   listUrl: string,
   resolveENSContentHash: (ensName: string) => Promise<string>,
 ): Promise<TokenList> {
-  if (listUrl === DEFAULT_TOKEN_LIST_URL) {
-    return defaultTokenJson[chainId]
-  }
   const parsedENS = parseENSAddress(listUrl)
-
   let urls: string[]
   if (parsedENS) {
     let contentHashUri
@@ -67,12 +60,12 @@ export default async function getTokenList(
     if (!tokenListValidator(json)) {
       const validationErrors: string =
         tokenListValidator.errors?.reduce<string>((memo, error) => {
-          const add = `${error.dataPath} ${error.message ?? ''}`
+          const add = `${(error as any).dataPath} ${error.message ?? ''}`
           return memo.length > 0 ? `${memo}; ${add}` : `${add}`
         }, '') ?? 'unknown error'
       throw new Error(`Token list failed validation: ${validationErrors}`)
     }
-    return json
+    return json as TokenList
   }
   throw new Error('Unrecognized list URL protocol.')
 }

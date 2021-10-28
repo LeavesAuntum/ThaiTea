@@ -1,17 +1,7 @@
-import { ChainId, Currency, CurrencyAmount, Token, TokenAmount, WETH } from '@alium-official/sdk'
-import { storeNetwork } from 'store/network/useStoreNetwork'
+import { ChainId, Currency, CurrencyAmount, ETHER, Token, TokenAmount, WETH } from '@rimauswap-sdk/sdk'
 
 export function wrappedCurrency(currency: Currency | undefined, chainId: ChainId | undefined): Token | undefined {
-  const { nativeCurrency } = storeNetwork.getState().currentNetwork.providerParams
-  // currency === nativeCurrency, not be equal but Object and instance not equal, check by symbol
-  // const token =
-  //   chainId && currency?.symbol === nativeCurrency?.symbol
-  //     ? WETH[chainId]
-  //     : currency instanceof Token
-  //     ? currency
-  //     : undefined
-  const isEth = Boolean(currency?.symbol === nativeCurrency?.symbol) || Boolean(currency === nativeCurrency)
-  return chainId && isEth ? WETH[chainId] : currency instanceof Token ? currency : undefined
+  return chainId && currency === ETHER ? WETH[chainId] : currency instanceof Token ? currency : undefined
 }
 
 export function wrappedCurrencyAmount(
@@ -19,12 +9,10 @@ export function wrappedCurrencyAmount(
   chainId: ChainId | undefined,
 ): TokenAmount | undefined {
   const token = currencyAmount && chainId ? wrappedCurrency(currencyAmount.currency, chainId) : undefined
-  const wrapped = token && currencyAmount ? new TokenAmount(token, currencyAmount.raw) : undefined
-  return wrapped
+  return token && currencyAmount ? new TokenAmount(token, currencyAmount.raw) : undefined
 }
 
 export function unwrappedToken(token: Token): Currency {
-  const { nativeCurrency } = storeNetwork.getState().currentNetwork.providerParams
-  if (token.equals(WETH[token.chainId])) return nativeCurrency
+  if (token.equals(WETH[token.chainId])) return ETHER
   return token
 }

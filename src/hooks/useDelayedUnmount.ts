@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 
 /**
  * Use this hook when you want to animate something when it appears on the screen (e.g. when some prop set to true)

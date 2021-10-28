@@ -1,6 +1,6 @@
 import { Profile } from 'state/types'
 
-export interface ProfileResponse {
+export type ProfileResponse = {
   0: string
   1: string
   2: string

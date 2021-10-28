@@ -1,57 +1,31 @@
-import { HelpIcon } from 'alium-uikit/src'
-import { useCallback, useState } from 'react'
+import React from 'react'
+import { HelpIcon, useTooltip, Box, BoxProps, useMatchBreakpoints } from '@rimauswap-libs/uikit'
 import styled from 'styled-components'
-import Tooltip from '../Tooltip'
 
-export interface QuestionHelperProps {
-  text: string
-  bordered?: boolean
-  className?: string
+interface Props extends BoxProps {
+  text: string | React.ReactNode
 }
 
-export default function QuestionHelper({ text, bordered, className }: QuestionHelperProps) {
-  const [show, setShow] = useState<boolean>(false)
-
-  const open = useCallback(() => setShow(true), [setShow])
-  const close = useCallback(() => setShow(false), [setShow])
-
-  return (
-    <QuestionHelper.Root className={className} style={{ marginLeft: 4 }}>
-      <Tooltip text={text} show={show}>
-        <QuestionHelper.Wrapper onClick={open} onMouseEnter={open} onMouseLeave={close} bordered={bordered}>
-          <HelpIcon />
-        </QuestionHelper.Wrapper>
-      </Tooltip>
-    </QuestionHelper.Root>
-  )
-}
-
-QuestionHelper.Root = styled.span``
-
-QuestionHelper.Wrapper = styled.div<{ bordered?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.2rem;
-  border: none;
-  background: none;
-  outline: none;
-  cursor: default;
-  border-radius: 36px;
-  color: ${({ theme }) => theme.colors.textSubtle};
-
-  ${({ bordered }) =>
-    bordered &&
-    `
-      border: 1px solid #d2d6e5;
-      box-sizing: border-box;
-      border-radius: 6px;
-      width: 40px;
-      height: 40px;
-    `}
-
+const QuestionWrapper = styled.div`
   :hover,
   :focus {
     opacity: 0.7;
+    width:100%
   }
 `
+
+const QuestionHelper: React.FC<Props> = ({ text, ...props }) => {
+  const { isXs, isSm } = useMatchBreakpoints()
+  const { targetRef, tooltip, tooltipVisible } = useTooltip(text, { placement: isXs || isSm ? 'bottom': 'right-end', trigger: 'hover' })
+
+  return (
+    <Box {...props}>
+      {tooltipVisible && tooltip}
+      <QuestionWrapper ref={targetRef}>
+        <HelpIcon color="textSubtle" width="16px" />
+      </QuestionWrapper>
+    </Box>
+  )
+}
+
+export default QuestionHelper

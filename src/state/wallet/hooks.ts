@@ -1,18 +1,16 @@
-import { Currency, CurrencyAmount, JSBI, Token, TokenAmount } from '@alium-official/sdk'
-import { ERC20_INTERFACE } from 'config/interfaces'
-import { useActiveWeb3React } from 'hooks'
+import { Currency, CurrencyAmount, ETHER, JSBI, Token, TokenAmount } from '@rimauswap-sdk/sdk'
+import { useMemo } from 'react'
+import { useWeb3React } from '@web3-react/core'
+import ERC20_INTERFACE from 'config/abi/erc20'
 import { useAllTokens } from 'hooks/Tokens'
 import { useMulticallContract } from 'hooks/useContract'
-import { useMemo } from 'react'
-import { useMultipleContractSingleData, useSingleContractMultipleData } from 'state/multicall/hooks'
-import { storeNetwork, useStoreNetwork } from 'store/network/useStoreNetwork'
 import { isAddress } from 'utils'
-import { getCurrencyEther } from './../../utils/common/getCurrencyEther'
+import { useSingleContractMultipleData, useMultipleContractSingleData } from '../multicall/hooks'
 
 /**
  * Returns a map of the given addresses to their eventually consistent BNB balances.
  */
-export function useETHBalances(uncheckedAddresses?: (string | undefined)[]): {
+export function useBNBBalances(uncheckedAddresses?: (string | undefined)[]): {
   [address: string]: CurrencyAmount | undefined
 } {
   const multicallContract = useMulticallContract()
@@ -33,15 +31,12 @@ export function useETHBalances(uncheckedAddresses?: (string | undefined)[]): {
     'getEthBalance',
     addresses.map((address) => [address]),
   )
-  const chainId = useStoreNetwork((state) => state.currentChainId)
-  const { calcAmount } = getCurrencyEther(chainId)
 
   return useMemo(
     () =>
       addresses.reduce<{ [address: string]: CurrencyAmount }>((memo, address, i) => {
         const value = results?.[i]?.result?.[0]
-
-        if (value) memo[address] = calcAmount(JSBI.BigInt(value.toString()))
+        if (value) memo[address] = CurrencyAmount.ether(JSBI.BigInt(value.toString()))
         return memo
       }, {}),
     [addresses, results],
@@ -103,25 +98,21 @@ export function useCurrencyBalances(
   account?: string,
   currencies?: (Currency | undefined)[],
 ): (CurrencyAmount | undefined)[] {
-  const { nativeCurrency } = storeNetwork.getState().currentNetwork.providerParams
   const tokens = useMemo(
     () => currencies?.filter((currency): currency is Token => currency instanceof Token) ?? [],
     [currencies],
   )
 
   const tokenBalances = useTokenBalances(account, tokens)
-  const containsETH: boolean = useMemo(
-    () => currencies?.some((currency) => currency === nativeCurrency) ?? false,
-    [currencies],
-  )
-  const ethBalance = useETHBalances(containsETH ? [account] : [])
+  const containsBNB: boolean = useMemo(() => currencies?.some((currency) => currency === ETHER) ?? false, [currencies])
+  const ethBalance = useBNBBalances(containsBNB ? [account] : [])
 
   return useMemo(
     () =>
       currencies?.map((currency) => {
         if (!account || !currency) return undefined
         if (currency instanceof Token) return tokenBalances[currency.address]
-        if (currency === nativeCurrency) return ethBalance[account]
+        if (currency === ETHER) return ethBalance[account]
         return undefined
       }) ?? [],
     [account, currencies, ethBalance, tokenBalances],
@@ -134,7 +125,7 @@ export function useCurrencyBalance(account?: string, currency?: Currency): Curre
 
 // mimics useAllBalances
 export function useAllTokenBalances(): { [tokenAddress: string]: TokenAmount | undefined } {
-  const { account } = useActiveWeb3React()
+  const { account } = useWeb3React()
   const allTokens = useAllTokens()
   const allTokensArray = useMemo(() => Object.values(allTokens ?? {}), [allTokens])
   const balances = useTokenBalances(account ?? undefined, allTokensArray)

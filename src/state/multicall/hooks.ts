@@ -1,18 +1,18 @@
-import { FunctionFragment, Interface } from '@ethersproject/abi'
+import { Interface, FunctionFragment } from '@ethersproject/abi'
 import { BigNumber } from '@ethersproject/bignumber'
 import { Contract } from '@ethersproject/contracts'
 import { useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useActiveWeb3React } from '../../hooks'
+import useActiveWeb3React from 'hooks/useActiveWeb3React'
 import { useBlockNumber } from '../application/hooks'
 import { AppDispatch, AppState } from '../index'
 import {
   addMulticallListeners,
   Call,
-  ListenerOptions,
-  parseCallKey,
   removeMulticallListeners,
+  parseCallKey,
   toCallKey,
+  ListenerOptions,
 } from './actions'
 
 export interface Result extends ReadonlyArray<any> {
@@ -49,9 +49,8 @@ export const NEVER_RELOAD: ListenerOptions = {
 }
 
 // the lowest level call for subscribing to contract data
-function useCallsData(calls: (Call | undefined)[], options?: ListenerOptions, chain?: number): CallResult[] {
-  const web = useActiveWeb3React()
-  const chainId = chain || web.chainId
+function useCallsData(calls: (Call | undefined)[], options?: ListenerOptions): CallResult[] {
+  const { chainId } = useActiveWeb3React()
   const callResults = useSelector<AppState, AppState['multicall']['callResults']>(
     (state) => state.multicall.callResults,
   )
@@ -95,12 +94,15 @@ function useCallsData(calls: (Call | undefined)[], options?: ListenerOptions, ch
 
   return useMemo(
     () =>
-      // @ts-ignore
       calls.map<CallResult>((call) => {
         if (!chainId || !call) return INVALID_RESULT
 
         const result = callResults[chainId]?.[toCallKey(call)]
-        const data = result?.data && result?.data !== '0x' ? result.data : null
+        let data
+        if (result?.data && result?.data !== '0x') {
+          // eslint-disable-next-line prefer-destructuring
+          data = result.data
+        }
 
         return { valid: true, data, blockNumber: result?.blockNumber }
       }),
@@ -141,7 +143,7 @@ function toCallState(
     try {
       result = contractInterface.decodeFunctionResult(fragment, data)
     } catch (error) {
-      console.error('Result data parsing failed', fragment, data)
+      console.debug('Result data parsing failed', fragment, data)
       return {
         valid: true,
         loading: false,
@@ -186,7 +188,6 @@ export function useSingleContractMultipleData(
   const latestBlockNumber = useBlockNumber()
 
   return useMemo(() => {
-    // @ts-ignore
     return results.map((result) => toCallState(result, contract?.interface, fragment, latestBlockNumber))
   }, [fragment, contract, results, latestBlockNumber])
 }
@@ -197,7 +198,6 @@ export function useMultipleContractSingleData(
   methodName: string,
   callInputs?: OptionalMethodInputs,
   options?: ListenerOptions,
-  chain?: number,
 ): CallState[] {
   const fragment = useMemo(() => contractInterface.getFunction(methodName), [contractInterface, methodName])
   const callData: string | undefined = useMemo(
@@ -223,7 +223,7 @@ export function useMultipleContractSingleData(
     [addresses, callData, fragment],
   )
 
-  const results = useCallsData(calls, options, chain)
+  const results = useCallsData(calls, options)
 
   const latestBlockNumber = useBlockNumber()
 
@@ -255,7 +255,6 @@ export function useSingleCallResult(
   const latestBlockNumber = useBlockNumber()
 
   return useMemo(() => {
-    // @ts-ignore
     return toCallState(result, contract?.interface, fragment, latestBlockNumber)
   }, [result, contract, fragment, latestBlockNumber])
 }

@@ -1,135 +1,173 @@
-import { useWeb3React } from '@web3-react/core'
-import { Toast, toastTypes } from 'alium-uikit/src'
-import BigNumber from 'bignumber.js'
-import { Team } from 'config/constants/types'
-import useRefresh from 'hooks/useRefresh'
-import { kebabCase } from 'lodash'
 import { useEffect, useMemo } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { fetchAchievements } from './achievements'
-import {
-  clear as clearToast,
-  fetchPoolsPublicDataAsync,
-  fetchPoolsUserDataAsync,
-  push as pushToast,
-  remove as removeToast,
-} from './actions'
-import { fetchProfile } from './profile'
-import { fetchTeam, fetchTeams } from './teams'
-import { AchievementState, Pool, ProfileState, State, TeamsState } from './types'
+import { useWeb3React } from '@web3-react/core'
+import { useSelector } from 'react-redux'
+import { ethers } from 'ethers'
+import { minBy, orderBy } from 'lodash'
+import { useAppDispatch } from 'state'
+import Nfts from 'config/constants/nfts'
+import { State, NodeRound, ReduxNodeLedger, NodeLedger, ReduxNodeRound } from './types'
+import { fetchWalletNfts } from './collectibles'
+import { parseBigNumberObj } from './predictions/helpers'
 
-const ZERO = new BigNumber(0)
+// /!\
+// Don't add anything here. These hooks will be moved the the predictions folder
 
-export const useFetchPublicData = () => {
-  const dispatch = useDispatch()
-  const { slowRefresh } = useRefresh()
-  useEffect(() => {
-    dispatch(fetchPoolsPublicDataAsync())
-  }, [dispatch, slowRefresh])
-}
-
-// Pools
-
-export const usePools = (account): Pool[] => {
-  const { fastRefresh } = useRefresh()
-  const dispatch = useDispatch()
-  useEffect(() => {
-    if (account) {
-      dispatch(fetchPoolsUserDataAsync(account))
-    }
-  }, [account, dispatch, fastRefresh])
-
-  const pools = useSelector((state: State) => state.pools.data)
-  return pools
-}
-
-export const usePoolFromPid = (sousId): Pool => {
-  const pool = useSelector((state: State) => state.pools.data.find((p) => p.sousId === sousId))
-  return pool
-}
-
-// Toasts
-export const useToast = () => {
-  const dispatch = useDispatch()
-  const helpers = useMemo(() => {
-    const push = (toast: Toast) => dispatch(pushToast(toast))
-
+// Predictions
+export const useGetRounds = () => {
+  const rounds = useSelector((state: State) => state.predictions.rounds)
+  return Object.keys(rounds).reduce((accum, epoch) => {
     return {
-      toastError: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.DANGER, title, description })
-      },
-      toastInfo: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.INFO, title, description })
-      },
-      toastSuccess: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.SUCCESS, title, description })
-      },
-      toastWarning: (title: string, description?: string) => {
-        return push({ id: kebabCase(title), type: toastTypes.WARNING, title, description })
-      },
-      push,
-      remove: (id: string) => dispatch(removeToast(id)),
-      clear: () => dispatch(clearToast()),
+      ...accum,
+      [epoch]: parseBigNumberObj<ReduxNodeRound, NodeRound>(rounds[epoch]),
     }
-  }, [dispatch])
-
-  return helpers
+  }, {}) as { [key: string]: NodeRound }
 }
 
-// Profile
+export const useGetRound = (epoch: number) => {
+  const round = useSelector((state: State) => state.predictions.rounds[epoch])
+  return parseBigNumberObj<ReduxNodeRound, NodeRound>(round)
+}
 
-export const useFetchProfile = () => {
+export const useGetSortedRounds = () => {
+  const roundData = useGetRounds()
+  return orderBy(Object.values(roundData), ['epoch'], ['asc'])
+}
+
+export const useGetBetByEpoch = (account: string, epoch: number) => {
+  const bets = useSelector((state: State) => state.predictions.ledgers)
+
+  if (!bets[account]) {
+    return null
+  }
+
+  if (!bets[account][epoch]) {
+    return null
+  }
+
+  return parseBigNumberObj<ReduxNodeLedger, NodeLedger>(bets[account][epoch])
+}
+
+export const useGetIsClaimable = (epoch) => {
+  const claimableStatuses = useSelector((state: State) => state.predictions.claimableStatuses)
+  return claimableStatuses[epoch] || false
+}
+
+/**
+ * Used to get the range of rounds to poll for
+ */
+export const useGetEarliestEpoch = () => {
+  return useSelector((state: State) => {
+    const earliestRound = minBy(Object.values(state.predictions.rounds), 'epoch')
+    return earliestRound?.epoch
+  })
+}
+
+export const useIsHistoryPaneOpen = () => {
+  return useSelector((state: State) => state.predictions.isHistoryPaneOpen)
+}
+
+export const useIsChartPaneOpen = () => {
+  return useSelector((state: State) => state.predictions.isChartPaneOpen)
+}
+
+export const useGetCurrentEpoch = () => {
+  return useSelector((state: State) => state.predictions.currentEpoch)
+}
+
+export const useGetIntervalBlocks = () => {
+  return useSelector((state: State) => state.predictions.intervalBlocks)
+}
+
+export const useGetBufferBlocks = () => {
+  return useSelector((state: State) => state.predictions.bufferBlocks)
+}
+
+export const useGetTotalIntervalBlocks = () => {
+  const intervalBlocks = useGetIntervalBlocks()
+  const bufferBlocks = useGetBufferBlocks()
+  return intervalBlocks + bufferBlocks
+}
+
+export const useGetCurrentRound = () => {
+  const currentEpoch = useGetCurrentEpoch()
+  const rounds = useGetSortedRounds()
+  return rounds.find((round) => round.epoch === currentEpoch)
+}
+
+export const useGetPredictionsStatus = () => {
+  return useSelector((state: State) => state.predictions.status)
+}
+
+export const useGetHistoryFilter = () => {
+  return useSelector((state: State) => state.predictions.historyFilter)
+}
+
+export const useGetCurrentRoundBlockNumber = () => {
+  return useSelector((state: State) => state.predictions.currentRoundStartBlockNumber)
+}
+
+export const useGetMinBetAmount = () => {
+  const minBetAmount = useSelector((state: State) => state.predictions.minBetAmount)
+  return useMemo(() => ethers.BigNumber.from(minBetAmount), [minBetAmount])
+}
+
+export const useGetRewardRate = () => {
+  const rewardRate = useSelector((state: State) => state.predictions.rewardRate)
+  return rewardRate / 100
+}
+
+export const useGetIsFetchingHistory = () => {
+  return useSelector((state: State) => state.predictions.isFetchingHistory)
+}
+
+export const useGetHistory = () => {
+  return useSelector((state: State) => state.predictions.history)
+}
+
+export const useGetHistoryByAccount = (account: string) => {
+  const bets = useGetHistory()
+  return bets ? bets[account] : []
+}
+
+export const useGetLedgerByRoundId = (account: string, roundId: string) => {
+  const ledgers = useSelector((state: State) => state.predictions.ledgers)
+
+  if (!ledgers[account]) {
+    return null
+  }
+
+  if (!ledgers[account][roundId]) {
+    return null
+  }
+
+  return ledgers[account][roundId]
+}
+
+export const useGetLastOraclePrice = () => {
+  const lastOraclePrice = useSelector((state: State) => state.predictions.lastOraclePrice)
+  return useMemo(() => {
+    return ethers.BigNumber.from(lastOraclePrice)
+  }, [lastOraclePrice])
+}
+
+// Collectibles
+export const useGetCollectibles = () => {
   const { account } = useWeb3React()
-  const dispatch = useDispatch()
+  const dispatch = useAppDispatch()
+  const { isInitialized, isLoading, data } = useSelector((state: State) => state.collectibles)
+  const identifiers = Object.keys(data)
 
   useEffect(() => {
-    dispatch(fetchProfile(account))
-  }, [account, dispatch])
-}
-
-export const useProfile = () => {
-  const { isInitialized, isLoading, data, hasRegistered }: ProfileState = useSelector((state: State) => state.profile)
-  return { profile: data, hasProfile: isInitialized && hasRegistered, isInitialized, isLoading }
-}
-
-// Teams
-
-export const useTeam = (id: number) => {
-  const team: Team = useSelector((state: State) => state.teams.data[id])
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    dispatch(fetchTeam(id))
-  }, [id, dispatch])
-
-  return team
-}
-
-export const useTeams = () => {
-  const { isInitialized, isLoading, data }: TeamsState = useSelector((state: State) => state.teams)
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    dispatch(fetchTeams())
-  }, [dispatch])
-
-  return { teams: data, isInitialized, isLoading }
-}
-
-// Achievements
-
-export const useFetchAchievements = () => {
-  const { account } = useWeb3React()
-  const dispatch = useDispatch()
-
-  useEffect(() => {
-    if (account) {
-      dispatch(fetchAchievements(account))
+    // Fetch nfts only if we have not done so already
+    if (!isInitialized) {
+      dispatch(fetchWalletNfts(account))
     }
-  }, [account, dispatch])
-}
+  }, [isInitialized, account, dispatch])
 
-export const useAchievements = () => {
-  const achievements: AchievementState['data'] = useSelector((state: State) => state.achievements.data)
-  return achievements
+  return {
+    isInitialized,
+    isLoading,
+    tokenIds: data,
+    nftsInWallet: Nfts.filter((nft) => identifiers.includes(nft.identifier)),
+  }
 }

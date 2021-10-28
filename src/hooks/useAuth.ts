@@ -1,6 +1,6 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import { useGTMDispatch } from '@elgorditosalsero/react-gtm-hook'
-import { UnsupportedChainIdError, useWeb3React } from '@web3-react/core'
+import { useCallback } from 'react'
+import { useWeb3React, UnsupportedChainIdError } from '@web3-react/core'
+import { NoBscProviderError } from '@binance-chain/bsc-connector'
 import {
   NoEthereumProviderError,
   UserRejectedRequestError as UserRejectedRequestErrorInjected,
@@ -9,114 +9,64 @@ import {
   UserRejectedRequestError as UserRejectedRequestErrorWalletConnect,
   WalletConnectConnector,
 } from '@web3-react/walletconnect-connector'
-import { ConnectorNames } from 'alium-uikit/src'
-import { removeConnectorId } from 'alium-uikit/src/util/connectorId/removeConnectorId'
-import { NoBscProviderError } from 'connectors/bsc/bscConnector'
-import { useActiveWeb3React } from 'hooks'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useToast } from 'state/hooks'
-import { useStoreAccount } from 'store/account/useStoreAccount'
-import { useStoreNetwork } from 'store/network/useStoreNetwork'
-import GTM from 'utils/gtm'
-import { getConnectorsByName } from 'utils/web3React'
-import { getNetworks } from './../alium-uikit/src/widgets/WalletModal/config'
-import { WEB3NetworkErrors } from './../constants/network/NetworkErrors.contanst'
+import { ConnectorNames, connectorLocalStorageKey } from '@rimauswap-libs/uikit'
+import { connectorsByName } from 'utils/web3React'
+import { setupNetwork } from 'utils/wallet'
+import useToast from 'hooks/useToast'
+import { profileClear } from 'state/profile'
+import { useAppDispatch } from 'state'
+import { useTranslation } from 'contexts/Localization'
 
 const useAuth = () => {
-  const { chainId, activate, deactivate, connector } = useWeb3React()
-  const { account: web3Account } = useActiveWeb3React()
+  const { t } = useTranslation()
+  const dispatch = useAppDispatch()
+  const { activate, deactivate } = useWeb3React()
   const { toastError } = useToast()
-  const sendDataToGTM = useGTMDispatch()
-  const { setConnectionError, toggleLoadConnection, toggleConnected, loadConnection } = useStoreNetwork()
-  const account = useRef(web3Account || '')
-  const clearBalance = useStoreAccount((state) => state.clearBalance)
-  const networks = getNetworks()
-  const supportedChains = useMemo(() => networks.map((network) => network.chainId), [])
-
-  useEffect(() => {
-    account.current = web3Account
-    toggleConnected(web3Account)
-    return () => {
-      account.current = ''
-      toggleConnected('')
-    }
-  }, [web3Account, loadConnection])
-
-  // error handle
-  const userWasReject = (error: Error) => {
-    return error instanceof UserRejectedRequestErrorInjected || error instanceof UserRejectedRequestErrorWalletConnect
-  }
-
-  // clear
-  const clearConnector = () => {
-    removeConnectorId()
-  }
 
   const login = useCallback(
-    async (connectorID: ConnectorNames) => {
-      const { connector } = getConnectorsByName(connectorID)
-      try {
-        if (!connector) {
-          return
-        }
-        toggleLoadConnection(true)
-        await activate(connector, async (error: Error) => {
+    (connectorID: ConnectorNames) => {
+      const connector = connectorsByName[connectorID]
+      if (connector) {
+        activate(connector, async (error: Error) => {
           if (error instanceof UnsupportedChainIdError) {
-            await unsupportedError(error, connector)
+            const hasSetup = await setupNetwork()
+            if (hasSetup) {
+              activate(connector)
+            }
           } else {
-            clearConnector()
+            window.localStorage.removeItem(connectorLocalStorageKey)
             if (error instanceof NoEthereumProviderError || error instanceof NoBscProviderError) {
-              toastError(WEB3NetworkErrors.NOPROVIDER)
-            } else if (userWasReject(error)) {
+              toastError(t('Provider Error'), t('No provider was found'))
+            } else if (
+              error instanceof UserRejectedRequestErrorInjected ||
+              error instanceof UserRejectedRequestErrorWalletConnect
+            ) {
               if (connector instanceof WalletConnectConnector) {
                 const walletConnector = connector as WalletConnectConnector
                 walletConnector.walletConnectProvider = null
               }
-              toastError(WEB3NetworkErrors.NOAUTH)
+              toastError(t('Authorization Error'), t('Please authorize to access your account'))
             } else {
               toastError(error.name, error.message)
             }
           }
         })
-      } catch (error) {
-        console.error(error)
-      } finally {
-        toggleLoadConnection(false)
-        setConnectionError(null)
-        account.current && GTM.connectWallet(sendDataToGTM, chainId)
+      } else {
+        toastError(t('Unable to find connector'), t('The connector config is wrong'))
       }
     },
-    [chainId],
+    [t, activate, toastError],
   )
 
-  const unsupportedError = async (error: Error, connector: any) => {
-    if (connector instanceof WalletConnectConnector) {
-      await logout(connector)
+  const logout = useCallback(() => {
+    dispatch(profileClear())
+    deactivate()
+    // This localStorage key is set by @web3-react/walletconnect-connector
+    if (window.localStorage.getItem('walletconnect')) {
+      connectorsByName.walletconnect.close()
+      connectorsByName.walletconnect.walletConnectProvider = null
     }
-    if (supportedChains.includes(chainId)) {
-      toastError(WEB3NetworkErrors.CANTSETUP)
-    } else {
-      toastError(WEB3NetworkErrors.UNSUPPORTED_CHAIN, error.message)
-    }
-    setConnectionError(WEB3NetworkErrors.UNSUPPORTED_CHAIN)
-  }
-
-  const logout = useCallback(
-    (_connector?: any) => {
-      const currentConnector = _connector || connector
-      deactivate()
-      clearBalance()
-      // This localStorage key is set by @web3-react/walletconnect-connector
-
-      if (window.localStorage.getItem('walletconnect') && currentConnector instanceof WalletConnectConnector) {
-        currentConnector.walletConnectProvider?.qrcodeModal?.close()
-        currentConnector.close()
-        currentConnector.walletConnectProvider = null
-      }
-      clearConnector()
-    },
-    [deactivate, chainId],
-  )
+  }, [deactivate, dispatch])
 
   return { login, logout }
 }

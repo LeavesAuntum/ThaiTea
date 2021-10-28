@@ -1,10 +1,11 @@
-import { Currency, CurrencyAmount, JSBI, Pair, Percent, TokenAmount } from '@alium-official/sdk'
-import { usePair } from 'data/Reserves'
-import { useTotalSupply } from 'data/TotalSupply'
-import { useActiveWeb3React } from 'hooks'
+import { Currency, CurrencyAmount, JSBI, Pair, Percent, TokenAmount } from '@rimauswap-sdk/sdk'
 import { useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import useActiveWeb3React from 'hooks/useActiveWeb3React'
 import { wrappedCurrency } from 'utils/wrappedCurrency'
+import { usePair } from 'hooks/usePairs'
+import useTotalSupply from 'hooks/useTotalSupply'
+
 import { AppDispatch, AppState } from '../index'
 import { tryParseAmount } from '../swap/hooks'
 import { useTokenBalances } from '../wallet/hooks'
@@ -78,7 +79,7 @@ export function useDerivedBurnInfo(
   // user specified a specific amount of liquidity tokens
   else if (independentField === Field.LIQUIDITY) {
     if (pair?.liquidityToken) {
-      const independentAmount = tryParseAmount(chainId, typedValue, pair.liquidityToken)
+      const independentAmount = tryParseAmount(typedValue, pair.liquidityToken)
       if (independentAmount && userLiquidity && !independentAmount.greaterThan(userLiquidity)) {
         percentToRemove = new Percent(independentAmount.raw, userLiquidity.raw)
       }
@@ -86,7 +87,7 @@ export function useDerivedBurnInfo(
   }
   // user specified a specific amount of token a or b
   else if (tokens[independentField]) {
-    const independentAmount = tryParseAmount(chainId, typedValue, tokens[independentField])
+    const independentAmount = tryParseAmount(typedValue, tokens[independentField])
     const liquidityValue = liquidityValues[independentField]
     if (independentAmount && liquidityValue && !independentAmount.greaterThan(liquidityValue)) {
       percentToRemove = new Percent(independentAmount.raw, liquidityValue.raw)

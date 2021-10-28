@@ -1,6 +1,7 @@
-import { ChevronDownIcon, ChevronUpIcon, Text } from 'alium-uikit/src'
-import { FC } from 'react'
+import React from 'react'
 import styled from 'styled-components'
+import { ChevronDownIcon, ChevronUpIcon, Text } from '@rimauswap-libs/uikit'
+import { useTranslation } from 'contexts/Localization'
 
 export interface ExpandableSectionButtonProps {
   onClick?: () => void
@@ -18,11 +19,13 @@ const Wrapper = styled.div`
   }
 `
 
-const ExpandableSectionButton: FC<ExpandableSectionButtonProps> = ({ onClick, expanded }) => {
+const ExpandableSectionButton: React.FC<ExpandableSectionButtonProps> = ({ onClick, expanded }) => {
+  const { t } = useTranslation()
+
   return (
-    <Wrapper aria-label='Hide or show expandable content' role='button' onClick={() => onClick()}>
-      <Text color='primary' bold>
-        {expanded ? 'Hide' : 'Details'}
+    <Wrapper aria-label={t('Hide or show expandable content')} role="button" onClick={() => onClick()}>
+      <Text color="primary" bold>
+        {expanded ? t('Hide') : t('Details')}
       </Text>
       {expanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
     </Wrapper>
