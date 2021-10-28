@@ -1,14 +1,14 @@
+/* eslint-disable func-name-matching */
+import { JSBI, Percent, Router, SwapParameters, Trade, TradeType } from '@alium-official/sdk'
 import { BigNumber } from '@ethersproject/bignumber'
 import { Contract } from '@ethersproject/contracts'
-import { JSBI, Percent, Router, SwapParameters, Trade, TradeType } from '@rimauswap-sdk/sdk'
+import { BIPS_BASE, DEFAULT_DEADLINE_FROM_NOW, INITIAL_ALLOWED_SLIPPAGE } from 'config/settings'
 import { useMemo } from 'react'
-import useActiveWeb3React from 'hooks/useActiveWeb3React'
-import { BIPS_BASE, INITIAL_ALLOWED_SLIPPAGE } from '../config/constants'
-import { useTransactionAdder } from '../state/transactions/hooks'
-import { calculateGasMargin, getRouterContract, isAddress, shortenAddress } from '../utils'
+import { useTransactionAdder } from 'state/transactions/hooks'
+import { calculateGasMargin, calculateGasPrice, getRouterContract, isAddress, shortenAddress } from 'utils'
 import isZero from '../utils/isZero'
-import useTransactionDeadline from './useTransactionDeadline'
-import useENS from './ENS/useENS'
+import { useActiveWeb3React } from './index'
+import useENS from './useENS'
 
 export enum SwapCallbackState {
   INVALID,
@@ -37,23 +37,24 @@ type EstimatedSwapCall = SuccessfulCall | FailedCall
  * Returns the swap calls that can be used to make the trade
  * @param trade trade to execute
  * @param allowedSlippage user allowed slippage
+ * @param deadline the deadline for the trade
  * @param recipientAddressOrName
  */
 function useSwapCallArguments(
   trade: Trade | undefined, // trade to execute, required
   allowedSlippage: number = INITIAL_ALLOWED_SLIPPAGE, // in bips
+  deadline: number = DEFAULT_DEADLINE_FROM_NOW, // in seconds from now
   recipientAddressOrName: string | null, // the ENS name or address of the recipient of the trade, or null if swap should be returned to sender
 ): SwapCall[] {
   const { account, chainId, library } = useActiveWeb3React()
 
   const { address: recipientAddress } = useENS(recipientAddressOrName)
   const recipient = recipientAddressOrName === null ? account : recipientAddress
-  const deadline = useTransactionDeadline()
 
   return useMemo(() => {
-    if (!trade || !recipient || !library || !account || !chainId || !deadline) return []
-
+    if (!trade || !recipient || !library || !account || !chainId) return []
     const contract: Contract | null = getRouterContract(chainId, library, account)
+
     if (!contract) {
       return []
     }
@@ -61,25 +62,24 @@ function useSwapCallArguments(
     const swapMethods = []
 
     swapMethods.push(
-      Router.swapCallParameters(trade, {
+      Router.swapCallParameters(chainId, trade, {
         feeOnTransfer: false,
-        allowedSlippage: new Percent(JSBI.BigInt(allowedSlippage), BIPS_BASE),
+        allowedSlippage: new Percent(JSBI.BigInt(Math.floor(allowedSlippage)), BIPS_BASE),
         recipient,
-        deadline: deadline.toNumber(),
+        ttl: deadline,
       }),
     )
 
     if (trade.tradeType === TradeType.EXACT_INPUT) {
       swapMethods.push(
-        Router.swapCallParameters(trade, {
+        Router.swapCallParameters(chainId, trade, {
           feeOnTransfer: true,
-          allowedSlippage: new Percent(JSBI.BigInt(allowedSlippage), BIPS_BASE),
+          allowedSlippage: new Percent(JSBI.BigInt(Math.floor(allowedSlippage)), BIPS_BASE),
           recipient,
-          deadline: deadline.toNumber(),
+          ttl: deadline,
         }),
       )
     }
-
     return swapMethods.map((parameters) => ({ parameters, contract }))
   }, [account, allowedSlippage, chainId, deadline, library, recipient, trade])
 }
@@ -89,11 +89,12 @@ function useSwapCallArguments(
 export function useSwapCallback(
   trade: Trade | undefined, // trade to execute, required
   allowedSlippage: number = INITIAL_ALLOWED_SLIPPAGE, // in bips
+  deadline: number = DEFAULT_DEADLINE_FROM_NOW, // in seconds from now
   recipientAddressOrName: string | null, // the ENS name or address of the recipient of the trade, or null if swap should be returned to sender
 ): { state: SwapCallbackState; callback: null | (() => Promise<string>); error: string | null } {
   const { account, chainId, library } = useActiveWeb3React()
 
-  const swapCalls = useSwapCallArguments(trade, allowedSlippage, recipientAddressOrName)
+  const swapCalls = useSwapCallArguments(trade, allowedSlippage, deadline, recipientAddressOrName)
 
   const addTransaction = useTransactionAdder()
 
@@ -130,20 +131,26 @@ export function useSwapCallback(
                 }
               })
               .catch((gasError) => {
-                console.error('Gas estimate failed, trying eth_call to extract error', call)
+                console.info('Gas estimate failed, trying eth_call to extract error', call)
 
                 return contract.callStatic[methodName](...args, options)
                   .then((result) => {
-                    console.error('Unexpected successful call after failed estimate gas', call, gasError, result)
+                    console.info('Unexpected successful call after failed estimate gas', call, gasError, result)
                     return { call, error: new Error('Unexpected issue with estimating the gas. Please try again.') }
                   })
                   .catch((callError) => {
-                    console.error('Call threw error', call, callError)
-                    const reason: string = callError.reason || callError.data?.message || callError.message
-                    const errorMessage = `The transaction cannot succeed due to error: ${
-                      reason ?? 'Unknown error, check the logs'
-                    }.`
-
+                    console.info('Call threw error', call, callError)
+                    let errorMessage: string
+                    switch (callError.reason) {
+                      case 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT':
+                      case 'UniswapV2Router: EXCESSIVE_INPUT_AMOUNT':
+                        errorMessage =
+                          'This transaction will not succeed either due to price movement or fee on transfer. Try increasing your slippage tolerance.'
+                        break
+                      default:
+                        errorMessage = `The transaction cannot succeed. This is probably caused by overrunning the slippage tolerance or expiring timeout.
+                        Please try again or change these settings in the Settings menu.`
+                    }
                     return { call, error: new Error(errorMessage) }
                   })
               })
@@ -170,8 +177,11 @@ export function useSwapCallback(
           gasEstimate,
         } = successfulEstimation
 
+        const gasPrice = await calculateGasPrice(contract.provider)
+
         return contract[methodName](...args, {
           gasLimit: calculateGasMargin(gasEstimate),
+          gasPrice,
           ...(value && !isZero(value) ? { value, from: account } : { from: account }),
         })
           .then((response: any) => {

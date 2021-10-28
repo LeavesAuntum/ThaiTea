@@ -1,12 +1,13 @@
-import { CurrencyAmount, Fraction, JSBI, Percent, TokenAmount, Trade } from '@rimauswap-sdk/sdk'
+import { CurrencyAmount, Fraction, JSBI, Percent, TokenAmount, Trade } from '@alium-official/sdk'
 import {
-  BLOCKED_PRICE_IMPACT_NON_EXPERT,
   ALLOWED_PRICE_IMPACT_HIGH,
   ALLOWED_PRICE_IMPACT_LOW,
   ALLOWED_PRICE_IMPACT_MEDIUM,
-} from '../config/constants'
-
-import { Field } from '../state/swap/actions'
+  BLOCKED_PRICE_IMPACT_NON_EXPERT,
+} from 'config/settings'
+import { Field } from 'state/swap/actions'
+import { storeNetwork } from './../store/network/useStoreNetwork'
+import { getCurrencyEther } from './common/getCurrencyEther'
 import { basisPointsToPercent } from './index'
 
 const BASE_FEE = new Percent(JSBI.BigInt(25), JSBI.BigInt(10000))
@@ -14,9 +15,9 @@ const ONE_HUNDRED_PERCENT = new Percent(JSBI.BigInt(10000), JSBI.BigInt(10000))
 const INPUT_FRACTION_AFTER_FEE = ONE_HUNDRED_PERCENT.subtract(BASE_FEE)
 
 // computes price breakdown for the trade
-export function computeTradePriceBreakdown(trade?: Trade | null): {
-  priceImpactWithoutFee: Percent | undefined
-  realizedLPFee: CurrencyAmount | undefined | null
+export function computeTradePriceBreakdown(trade?: Trade): {
+  priceImpactWithoutFee?: Percent
+  realizedLPFee?: CurrencyAmount
 } {
   // for each hop in our trade, take away the x*y=k price impact from 0.3% fees
   // e.g. for 3 tokens/2 hops: 1 - ((1 - .03) * (1-.03))
@@ -37,13 +38,16 @@ export function computeTradePriceBreakdown(trade?: Trade | null): {
     ? new Percent(priceImpactWithoutFeeFraction?.numerator, priceImpactWithoutFeeFraction?.denominator)
     : undefined
 
+  const chainId = storeNetwork.getState().currentChainId
+  const { calcAmount } = getCurrencyEther(chainId)
+
   // the amount of the input that accrues to LPs
   const realizedLPFeeAmount =
     realizedLPFee &&
     trade &&
     (trade.inputAmount instanceof TokenAmount
       ? new TokenAmount(trade.inputAmount.token, realizedLPFee.multiply(trade.inputAmount.raw).quotient)
-      : CurrencyAmount.ether(realizedLPFee.multiply(trade.inputAmount.raw).quotient))
+      : calcAmount(realizedLPFee.multiply(trade.inputAmount.raw).quotient))
 
   return { priceImpactWithoutFee: priceImpactWithoutFeePercent, realizedLPFee: realizedLPFeeAmount }
 }
@@ -53,10 +57,11 @@ export function computeSlippageAdjustedAmounts(
   trade: Trade | undefined,
   allowedSlippage: number,
 ): { [field in Field]?: CurrencyAmount } {
+  const chainId = storeNetwork.getState().currentChainId
   const pct = basisPointsToPercent(allowedSlippage)
   return {
-    [Field.INPUT]: trade?.maximumAmountIn(pct),
-    [Field.OUTPUT]: trade?.minimumAmountOut(pct),
+    [Field.INPUT]: trade?.maximumAmountIn(chainId, pct),
+    [Field.OUTPUT]: trade?.minimumAmountOut(chainId, pct),
   }
 }
 

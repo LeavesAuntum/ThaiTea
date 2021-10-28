@@ -1,8 +1,8 @@
+import { useActiveWeb3React } from 'hooks'
 import { useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
-import useActiveWeb3React from 'hooks/useActiveWeb3React'
-import useDebounce from 'hooks/useDebounce'
-import useIsWindowVisible from 'hooks/useIsWindowVisible'
+import useDebounce from '../../hooks/useDebounce'
+import useIsWindowVisible from '../../hooks/useIsWindowVisible'
 import { updateBlockNumber } from './actions'
 
 export default function Updater(): null {
@@ -18,12 +18,12 @@ export default function Updater(): null {
 
   const blockNumberCallback = useCallback(
     (blockNumber: number) => {
-      setState((prev) => {
-        if (chainId === prev.chainId) {
-          if (typeof prev.blockNumber !== 'number') return { chainId, blockNumber }
-          return { chainId, blockNumber: Math.max(blockNumber, prev.blockNumber) }
+      setState((s) => {
+        if (chainId === s.chainId) {
+          if (typeof s.blockNumber !== 'number') return { chainId, blockNumber }
+          return { chainId, blockNumber: Math.max(blockNumber, s.blockNumber) }
         }
-        return prev
+        return s
       })
     },
     [chainId, setState],

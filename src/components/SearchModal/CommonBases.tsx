@@ -1,17 +1,16 @@
-import React from 'react'
-import { ChainId, Currency, currencyEquals, ETHER, Token } from '@rimauswap-sdk/sdk'
-import { Text } from '@rimauswap-libs/uikit'
+import { ChainId, Currency, currencyEquals, Token } from '@alium-official/sdk'
+import { Text } from 'alium-uikit/src'
+import { SUGGESTED_BASES } from 'constants/index'
+import { useTranslation } from 'next-i18next'
+import { useStoreNetwork } from 'store/network/useStoreNetwork'
 import styled from 'styled-components'
-import { useTranslation } from 'contexts/Localization'
-
-import { SUGGESTED_BASES } from '../../config/constants'
-import { AutoColumn } from '../Layout/Column'
+import { AutoColumn } from '../Column'
+import CurrencyLogo from '../CurrencyLogo'
 import QuestionHelper from '../QuestionHelper'
-import { AutoRow } from '../Layout/Row'
-import { CurrencyLogo } from '../Logo'
+import { AutoRow } from '../Row'
 
 const BaseWrapper = styled.div<{ disable?: boolean }>`
-  border: 1px solid ${({ theme, disable }) => (disable ? 'transparent' : theme.colors.dropdown)};
+  border: 1px solid ${({ theme, disable }) => (disable ? 'transparent' : theme.colors.tertiary)};
   border-radius: 10px;
   display: flex;
   padding: 6px;
@@ -19,10 +18,10 @@ const BaseWrapper = styled.div<{ disable?: boolean }>`
   align-items: center;
   :hover {
     cursor: ${({ disable }) => !disable && 'pointer'};
-    background-color: ${({ theme, disable }) => !disable && theme.colors.background};
+    background-color: ${({ theme, disable }) => !disable && theme.colors.invertedContrast};
   }
 
-  background-color: ${({ theme, disable }) => disable && theme.colors.dropdown};
+  background-color: ${({ theme, disable }) => disable && theme.colors.tertiary};
   opacity: ${({ disable }) => disable && '0.4'};
 `
 
@@ -35,31 +34,31 @@ export default function CommonBases({
   selectedCurrency?: Currency | null
   onSelect: (currency: Currency) => void
 }) {
+  const currentNetwork = useStoreNetwork((state) => state.currentNetwork)
+  const { nativeCurrency } = currentNetwork.providerParams
   const { t } = useTranslation()
-  // const boolenValue = true;
   return (
-    <AutoColumn gap="md">
+    <AutoColumn gap='md'>
       <AutoRow>
-        <Text fontSize="14px">{t('Common bases')}</Text>
-        <QuestionHelper text={t('These tokens are commonly paired with other tokens.')} ml="4px" />
+        <Text fontSize='14px'>?</Text>
+        <QuestionHelper text='?' />
       </AutoRow>
-      <AutoRow gap="auto">
+      <AutoRow gap='4px'>
         <BaseWrapper
           onClick={() => {
-            if (!selectedCurrency || !currencyEquals(selectedCurrency, ETHER)) {
-              onSelect(ETHER)
+            if (!selectedCurrency || !currencyEquals(selectedCurrency, nativeCurrency)) {
+              onSelect(nativeCurrency)
             }
           }}
-          disable={selectedCurrency === ETHER}
+          disable={selectedCurrency === nativeCurrency}
         >
-          <CurrencyLogo currency={ETHER} style={{ marginRight: 8 }} />
-          <Text>BNB</Text>
+          <CurrencyLogo currency={nativeCurrency} style={{ marginRight: 8 }} />
+          <Text>?</Text>
         </BaseWrapper>
         {(chainId ? SUGGESTED_BASES[chainId] : []).map((token: Token) => {
           const selected = selectedCurrency instanceof Token && selectedCurrency.address === token.address
           return (
             <BaseWrapper onClick={() => !selected && onSelect(token)} disable={selected} key={token.address}>
-              {/* {console.log("token", token)} */}
               <CurrencyLogo currency={token} style={{ marginRight: 8 }} />
               <Text>{token.symbol}</Text>
             </BaseWrapper>

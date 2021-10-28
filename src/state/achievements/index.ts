@@ -1,5 +1,8 @@
 import { createSlice, Dispatch, PayloadAction } from '@reduxjs/toolkit'
-import { AchievementState, Achievement } from '../types'
+import { toastTypes } from 'alium-uikit/src'
+import { kebabCase } from 'lodash'
+import { push } from 'state/toasts'
+import { Achievement, AchievementState } from '../types'
 import { getAchievements } from './helpers'
 
 const initialState: AchievementState = {
@@ -14,7 +17,7 @@ export const achievementSlice = createSlice({
       state.data.push(action.payload)
     },
     addAchievements: (state, action: PayloadAction<Achievement[]>) => {
-      state.data = [...state.data, ...action.payload]
+      state.data.concat(action.payload)
     },
     setAchievements: (state, action: PayloadAction<Achievement[]>) => {
       state.data = action.payload
@@ -34,7 +37,8 @@ export const fetchAchievements = (account: string) => async (dispatch: Dispatch)
     const achievements = await getAchievements(account)
     dispatch(setAchievements(achievements))
   } catch (error) {
-    console.error(error)
+    const title = 'Error fetching achievements'
+    dispatch(push({ id: kebabCase(title), type: toastTypes.DANGER, title }))
   }
 }
 

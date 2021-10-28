@@ -1,27 +1,33 @@
-import { ChainId } from '@rimauswap-sdk/sdk'
 import addresses from 'config/constants/contracts'
-import tokens from 'config/constants/tokens'
 import { Address } from 'config/constants/types'
+import { storeNetwork } from 'store/network/useStoreNetwork'
 
 export const getAddress = (address: Address): string => {
-  const chainId = process.env.REACT_APP_CHAIN_ID
-  return address[chainId] ? address[chainId] : address[ChainId.MAINNET]
+  const mainNetChainId = 56
+  const { currentChainId } = storeNetwork.getState()
+  return address[currentChainId] ? address[currentChainId] : address[mainNetChainId]
 }
 
 export const getCakeAddress = () => {
-  return getAddress(tokens.rimau.address)
+  return getAddress(addresses.cake)
 }
 export const getMasterChefAddress = () => {
   return getAddress(addresses.masterChef)
 }
+export const getFarmingTicketWindow = () => {
+  return getAddress(addresses.farmingTicketWindow)
+}
 export const getMulticallAddress = () => {
-  return getAddress(addresses.multiCall)
+  return getAddress(addresses.mulltiCall)
 }
 export const getWbnbAddress = () => {
-  return getAddress(tokens.wbnb.address)
+  return getAddress(addresses.wbnb)
 }
-export const getLotteryV2Address = () => {
-  return getAddress(addresses.lotteryV2)
+export const getLotteryAddress = () => {
+  return getAddress(addresses.lottery)
+}
+export const getLotteryTicketAddress = () => {
+  return getAddress(addresses.lotteryNFT)
 }
 export const getPancakeProfileAddress = () => {
   return getAddress(addresses.pancakeProfile)
@@ -29,8 +35,8 @@ export const getPancakeProfileAddress = () => {
 export const getPancakeRabbitsAddress = () => {
   return getAddress(addresses.pancakeRabbits)
 }
-export const getBunnyFactoryAddress = () => {
-  return getAddress(addresses.bunnyFactory)
+export const getRabbitMintingFarmAddress = () => {
+  return getAddress(addresses.rabbitMintingFarm)
 }
 export const getClaimRefundAddress = () => {
   return getAddress(addresses.claimRefund)
@@ -38,27 +44,5 @@ export const getClaimRefundAddress = () => {
 export const getPointCenterIfoAddress = () => {
   return getAddress(addresses.pointCenterIfo)
 }
-export const getBunnySpecialAddress = () => {
-  return getAddress(addresses.bunnySpecial)
-}
-export const getTradingCompetitionAddress = () => {
-  return getAddress(addresses.tradingCompetition)
-}
-export const getEasterNftAddress = () => {
-  return getAddress(addresses.easterNft)
-}
-export const getRimauVaultAddress = () => {
-  return getAddress(addresses.rimauVault)
-}
-export const getPredictionsAddress = () => {
-  return getAddress(addresses.predictions)
-}
-export const getChainlinkOracleAddress = () => {
-  return getAddress(addresses.chainlinkOracle)
-}
-export const getBunnySpecialCakeVaultAddress = () => {
-  return getAddress(addresses.bunnySpecialCakeVault)
-}
-export const getBunnySpecialPredictionAddress = () => {
-  return getAddress(addresses.bunnySpecialPrediction)
-}
+
+export const getShpAddress = () => getAddress(addresses.shp)

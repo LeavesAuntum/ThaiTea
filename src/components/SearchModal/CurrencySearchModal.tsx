@@ -1,135 +1,72 @@
-import React, { useCallback, useState } from 'react'
-import { Currency, Token } from '@rimauswap-sdk/sdk'
-import {
-  ModalContainer,
-  ModalHeader,
-  ModalTitle,
-  ModalBackButton,
-  ModalCloseButton,
-  ModalBody,
-  InjectedModalProps,
-  Heading,
-  Button,
-} from '@rimauswap-libs/uikit'
-import styled from 'styled-components'
-import usePrevious from 'hooks/usePreviousValue'
-import { TokenList } from '@uniswap/token-lists'
-import { useTranslation } from 'contexts/Localization'
-import CurrencySearch from './CurrencySearch'
-import useTheme from '../../hooks/useTheme'
-import ImportToken from './ImportToken'
-import Manage from './Manage'
-import ImportList from './ImportList'
-import { CurrencyModalView } from './types'
+import { Currency } from '@alium-official/sdk'
+import { SwapModal } from 'components/Modal/SwapModal'
+import { useCallback, useEffect, useState } from 'react'
+import { useSelectedListUrl } from 'state/lists/hooks'
+import useLast from '../../hooks/useLast'
+import { CurrencySearch } from './CurrencySearch'
+import { ListSelect } from './ListSelect'
 
-const Footer = styled.div`
-  width: 100%;
-  background-color: ${({ theme }) => theme.colors.backgroundAlt};
-  text-align: center;
-`
-
-const StyledModalContainer = styled(ModalContainer)`
-  max-width: 420px;
-  width: 100%;
-`
-
-const StyledModalBody = styled(ModalBody)`
-  padding: 24px;
-`
-
-interface CurrencySearchModalProps extends InjectedModalProps {
+interface CurrencySearchModalProps {
+  isOpen: boolean
+  onDismiss: () => void
   selectedCurrency?: Currency | null
   onCurrencySelect: (currency: Currency) => void
   otherSelectedCurrency?: Currency | null
   showCommonBases?: boolean
+  currencyList?: any
 }
 
 export default function CurrencySearchModal({
-  onDismiss = () => null,
+  isOpen,
+  onDismiss,
   onCurrencySelect,
   selectedCurrency,
   otherSelectedCurrency,
-  showCommonBases = false,
+  currencyList,
 }: CurrencySearchModalProps) {
-  const [modalView, setModalView] = useState<CurrencyModalView>(CurrencyModalView.search)
-  const { theme } = useTheme();
+  const [listView, setListView] = useState<boolean>(false)
+  const lastOpen = useLast(isOpen)
+
+  useEffect(() => {
+    if (isOpen && !lastOpen) {
+      setListView(false)
+    }
+  }, [isOpen, lastOpen])
+
   const handleCurrencySelect = useCallback(
     (currency: Currency) => {
-      onDismiss()
       onCurrencySelect(currency)
+      onDismiss()
     },
     [onDismiss, onCurrencySelect],
   )
 
-  // for token import view
-  const prevView = usePrevious(modalView)
+  const handleClickChangeList = useCallback(() => {
+    setListView(true)
+  }, [])
+  const handleClickBack = useCallback(() => {
+    setListView(false)
+  }, [])
 
-  // used for import token flow
-  const [importToken, setImportToken] = useState<Token | undefined>()
-
-  // used for import list
-  const [importList, setImportList] = useState<TokenList | undefined>()
-  const [listURL, setListUrl] = useState<string | undefined>()
-
-  const { t } = useTranslation()
-
-  const config = {
-    [CurrencyModalView.search]: { title: t('Select a Token'), onBack: undefined },
-    [CurrencyModalView.manage]: { title: t('Manage'), onBack: () => setModalView(CurrencyModalView.search) },
-    [CurrencyModalView.importToken]: {
-      title: t('Import Tokens'),
-      onBack: () =>
-        setModalView(prevView && prevView !== CurrencyModalView.importToken ? prevView : CurrencyModalView.search),
-    },
-    [CurrencyModalView.importList]: { title: t('Import List'), onBack: () => setModalView(CurrencyModalView.search) },
-  }
+  const selectedListUrl = useSelectedListUrl()
+  const noListSelected = !selectedListUrl
 
   return (
-    <StyledModalContainer minWidth="320px">
-      <ModalHeader>
-        <ModalTitle>
-          {config[modalView].onBack && <ModalBackButton onBack={config[modalView].onBack} />}
-          <Heading>{config[modalView].title}</Heading>
-        </ModalTitle>
-        <ModalCloseButton theme={theme} onDismiss={onDismiss} />
-      </ModalHeader>
-      <StyledModalBody>
-        {modalView === CurrencyModalView.search ? (
-          <CurrencySearch
-            onCurrencySelect={handleCurrencySelect}
-            selectedCurrency={selectedCurrency}
-            otherSelectedCurrency={otherSelectedCurrency}
-            showCommonBases={showCommonBases}
-            showImportView={() => setModalView(CurrencyModalView.importToken)}
-            setImportToken={setImportToken}
-          />
-        ) : modalView === CurrencyModalView.importToken && importToken ? (
-          <ImportToken tokens={[importToken]} handleCurrencySelect={handleCurrencySelect} />
-        ) : modalView === CurrencyModalView.importList && importList && listURL ? (
-          <ImportList list={importList} listURL={listURL} onImport={() => setModalView(CurrencyModalView.manage)} />
-        ) : modalView === CurrencyModalView.manage ? (
-          <Manage
-            setModalView={setModalView}
-            setImportToken={setImportToken}
-            setImportList={setImportList}
-            setListUrl={setListUrl}
-          />
-        ) : (
-          ''
-        )}
-        {modalView === CurrencyModalView.search && (
-          <Footer>
-            <Button
-              scale="sm"
-              variant="text"
-              onClick={() => setModalView(CurrencyModalView.manage)}
-              className="list-token-manage-button"
-            >
-              {t('Manage Tokens')}
-            </Button>
-          </Footer>
-        )}
-      </StyledModalBody>
-    </StyledModalContainer>
+    <SwapModal isOpen={isOpen} onDismiss={onDismiss} maxHeight={90} minHeight={listView ? 40 : noListSelected ? 0 : 80}>
+      {listView ? (
+        <ListSelect onDismiss={onDismiss} onBack={handleClickBack} />
+      ) : (
+        <CurrencySearch
+          isOpen={isOpen}
+          onDismiss={onDismiss}
+          onCurrencySelect={handleCurrencySelect}
+          onChangeList={handleClickChangeList}
+          selectedCurrency={selectedCurrency}
+          otherSelectedCurrency={otherSelectedCurrency}
+          showCommonBases={false}
+          currencyList={currencyList}
+        />
+      )}
+    </SwapModal>
   )
 }

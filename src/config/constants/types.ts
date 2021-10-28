@@ -1,54 +1,47 @@
-import BigNumber from 'bignumber.js'
-import { SerializedBigNumber, TranslatableText } from 'state/types'
+import { Token } from '@alium-official/sdk'
+import { TranslatableText } from 'state/types'
 
-export interface Address {
-  97?: string
-  56: string
-}
-
-export interface Token {
-  symbol: string
-  address?: Address
-  decimals?: number
-  projectLink?: string
-  busdPrice?: string
-}
-
-export enum PoolIds {
-  poolBasic = 'poolBasic',
-  poolUnlimited = 'poolUnlimited',
-}
-
-export type IfoStatus = 'idle' | 'coming_soon' | 'live' | 'finished'
-
-interface IfoPoolInfo {
-  saleAmount: string
-  raiseAmount: string
-  cakeToBurn: string
-  distributionRatio: number // Range [0-1]
-}
+export type IfoStatus = 'coming_soon' | 'live' | 'finished'
 
 export interface Ifo {
   id: string
   isActive: boolean
   address: string
   name: string
-  currency: Token
-  token: Token
+  subTitle?: string
+  description?: string
+  launchDate: string
+  launchTime: string
+  saleAmount: string
+  raiseAmount: string
+  cakeToBurn: string
+  projectSiteUrl: string
+  currency: string
+  currencyAddress: string
+  tokenDecimals: number
   releaseBlockNumber: number
-  articleUrl: string
-  campaignId: string
-  tokenOfferingPrice: number
-  version: number
-  [PoolIds.poolBasic]?: IfoPoolInfo
-  [PoolIds.poolUnlimited]: IfoPoolInfo
+  campaignId?: string
+}
+
+export enum QuoteToken {
+  'BNB' = 'BNB',
+  'CAKE' = 'CAKE',
+  'SYRUP' = 'SYRUP',
+  'BUSD' = 'BUSD',
+  'TWT' = 'TWT',
+  'UST' = 'UST',
+  'ETH' = 'ETH',
+  'COMP' = 'COMP',
 }
 
 export enum PoolCategory {
   'COMMUNITY' = 'Community',
   'CORE' = 'Core',
   'BINANCE' = 'Binance', // Pools using native BNB behave differently than pools using a token
-  'AUTO' = 'Auto',
+}
+
+export interface Address {
+  [key: number]: string
 }
 
 export interface FarmConfig {
@@ -68,18 +61,22 @@ export interface FarmConfig {
 
 export interface PoolConfig {
   sousId: number
-  earningToken: Token
-  stakingToken: Token
+  image?: string
+  tokenName: string
+  stakingTokenName: QuoteToken
+  stakingLimit?: number
+  stakingTokenAddress?: string
   contractAddress: Address
   poolCategory: PoolCategory
+  projectLink: string
   tokenPerBlock: string
   sortOrder?: number
   harvest?: boolean
   isFinished?: boolean
-  enableEmergencyWithdraw?: boolean
+  tokenDecimals: number
 }
 
-export type Images = {
+export interface Images {
   lg: string
   md: string
   sm: string
@@ -87,47 +84,22 @@ export type Images = {
 }
 
 export type NftImages = {
-  blur?: string
+  blur: string
 } & Images
 
-export type NftVideo = {
-  webm: string
-  mp4: string
-}
-
-export type NftSource = {
-  [key in NftType]: {
-    address: Address
-    identifierKey: string
-  }
-}
-
-export enum NftType {
-  RIMAU = 'pancake',
-  MIXIE = 'mixie',
-}
-
-export type Nft = {
-  description: string
+export interface Nft {
   name: string
+  description: string
   images: NftImages
   sortOrder: number
-  type: NftType
-  video?: NftVideo
-
-  // Uniquely identifies the nft.
-  // Used for matching an NFT from the config with the data from the NFT's tokenURI
-  identifier: string
-
-  // Used to be "bunnyId". Used when minting NFT
-  variationId?: number | string
+  bunnyId: number
 }
 
 export type TeamImages = {
   alt: string
 } & Images
 
-export type Team = {
+export interface Team {
   id: number
   name: string
   description: string
@@ -139,41 +111,12 @@ export type Team = {
   textColor: string
 }
 
-export type CampaignType = 'ifo' | 'teambattle' | 'participation'
+export type CampaignType = 'ifo'
 
-export type Campaign = {
+export interface Campaign {
   id: string
   type: CampaignType
   title?: TranslatableText
   description?: TranslatableText
   badge?: string
-}
-
-export type PageMeta = {
-  title: string
-  description?: string
-  image?: string
-}
-
-export enum LotteryStatus {
-  PENDING = 'pending',
-  OPEN = 'open',
-  CLOSE = 'close',
-  CLAIMABLE = 'claimable',
-}
-
-export interface LotteryTicket {
-  id: string
-  number: string
-  status: boolean
-  rewardBracket?: number
-  roundId?: string
-  cakeReward?: SerializedBigNumber
-}
-
-export interface LotteryTicketClaimData {
-  ticketsWithUnclaimedRewards: LotteryTicket[]
-  allWinningTickets: LotteryTicket[]
-  cakeTotal: BigNumber
-  roundId: string
 }

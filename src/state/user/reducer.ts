@@ -1,5 +1,5 @@
 import { createReducer } from '@reduxjs/toolkit'
-import { INITIAL_ALLOWED_SLIPPAGE, DEFAULT_DEADLINE_FROM_NOW } from '../../config/constants'
+import { DEFAULT_DEADLINE_FROM_NOW, INITIAL_ALLOWED_SLIPPAGE } from 'config/settings'
 import { updateVersion } from '../global/actions'
 import {
   addSerializedPair,
@@ -8,18 +8,12 @@ import {
   removeSerializedToken,
   SerializedPair,
   SerializedToken,
+  updateMatchesDarkMode,
+  updateUserDarkMode,
+  updateUserDeadline,
   updateUserExpertMode,
   updateUserSlippageTolerance,
-  updateUserDeadline,
-  updateUserSingleHopOnly,
-  muteAudio,
-  unmuteAudio,
-  toggleTheme,
-  updateGasPrice,
-  addWatchlistToken,
-  addWatchlistPool,
 } from './actions'
-import { GAS_PRICE_GWEI } from './hooks/helpers'
 
 const currentTimestamp = () => new Date().getTime()
 
@@ -27,10 +21,10 @@ export interface UserState {
   // the timestamp of the last updateVersion action
   lastUpdateVersionTimestamp?: number
 
-  userExpertMode: boolean
+  userDarkMode: boolean | null // the user's choice for dark mode or light mode
+  matchesDarkMode: boolean // whether the dark mode media query matches
 
-  // only allow swaps on direct pairs
-  userSingleHopOnly: boolean
+  userExpertMode: boolean
 
   // user defined slippage tolerance in bips, used in all txns
   userSlippageTolerance: number
@@ -52,11 +46,6 @@ export interface UserState {
   }
 
   timestamp: number
-  audioPlay: boolean
-  isDark: boolean
-  gasPrice: string
-  watchlistTokens: string[]
-  watchlistPools: string[]
 }
 
 function pairKey(token0Address: string, token1Address: string) {
@@ -64,18 +53,14 @@ function pairKey(token0Address: string, token1Address: string) {
 }
 
 export const initialState: UserState = {
+  userDarkMode: null,
+  matchesDarkMode: false,
   userExpertMode: false,
-  userSingleHopOnly: false,
   userSlippageTolerance: INITIAL_ALLOWED_SLIPPAGE,
   userDeadline: DEFAULT_DEADLINE_FROM_NOW,
   tokens: {},
   pairs: {},
   timestamp: currentTimestamp(),
-  audioPlay: true,
-  isDark: false,
-  gasPrice: GAS_PRICE_GWEI.default,
-  watchlistTokens: [],
-  watchlistPools: [],
 }
 
 export default createReducer(initialState, (builder) =>
@@ -95,6 +80,14 @@ export default createReducer(initialState, (builder) =>
 
       state.lastUpdateVersionTimestamp = currentTimestamp()
     })
+    .addCase(updateUserDarkMode, (state, action) => {
+      state.userDarkMode = action.payload.userDarkMode
+      state.timestamp = currentTimestamp()
+    })
+    .addCase(updateMatchesDarkMode, (state, action) => {
+      state.matchesDarkMode = action.payload.matchesDarkMode
+      state.timestamp = currentTimestamp()
+    })
     .addCase(updateUserExpertMode, (state, action) => {
       state.userExpertMode = action.payload.userExpertMode
       state.timestamp = currentTimestamp()
@@ -107,21 +100,12 @@ export default createReducer(initialState, (builder) =>
       state.userDeadline = action.payload.userDeadline
       state.timestamp = currentTimestamp()
     })
-    .addCase(updateUserSingleHopOnly, (state, action) => {
-      state.userSingleHopOnly = action.payload.userSingleHopOnly
-    })
     .addCase(addSerializedToken, (state, { payload: { serializedToken } }) => {
-      if (!state.tokens) {
-        state.tokens = {}
-      }
       state.tokens[serializedToken.chainId] = state.tokens[serializedToken.chainId] || {}
       state.tokens[serializedToken.chainId][serializedToken.address] = serializedToken
       state.timestamp = currentTimestamp()
     })
     .addCase(removeSerializedToken, (state, { payload: { address, chainId } }) => {
-      if (!state.tokens) {
-        state.tokens = {}
-      }
       state.tokens[chainId] = state.tokens[chainId] || {}
       delete state.tokens[chainId][address]
       state.timestamp = currentTimestamp()
@@ -144,39 +128,5 @@ export default createReducer(initialState, (builder) =>
         delete state.pairs[chainId][pairKey(tokenBAddress, tokenAAddress)]
       }
       state.timestamp = currentTimestamp()
-    })
-    .addCase(muteAudio, (state) => {
-      state.audioPlay = false
-    })
-    .addCase(unmuteAudio, (state) => {
-      state.audioPlay = true
-    })
-    .addCase(toggleTheme, (state) => {
-      state.isDark = !state.isDark
-    })
-    .addCase(updateGasPrice, (state, action) => {
-      state.gasPrice = action.payload.gasPrice
-    })
-    .addCase(addWatchlistToken, (state, { payload: { address } }) => {
-      // state.watchlistTokens can be undefined for pre-loaded localstorage user state
-      const tokenWatchlist = state.watchlistTokens ?? []
-      if (!tokenWatchlist.includes(address)) {
-        state.watchlistTokens = [...tokenWatchlist, address]
-      } else {
-        // Remove token from watchlist
-        const newTokens = state.watchlistTokens.filter((x) => x !== address)
-        state.watchlistTokens = newTokens
-      }
-    })
-    .addCase(addWatchlistPool, (state, { payload: { address } }) => {
-      // state.watchlistPools can be undefined for pre-loaded localstorage user state
-      const poolsWatchlist = state.watchlistPools ?? []
-      if (!poolsWatchlist.includes(address)) {
-        state.watchlistPools = [...poolsWatchlist, address]
-      } else {
-        // Remove pool from watchlist
-        const newPools = state.watchlistPools.filter((x) => x !== address)
-        state.watchlistPools = newPools
-      }
     }),
 )

@@ -1,6 +1,6 @@
-import { useCallback } from 'react'
-import { harvestFarm } from 'utils/calls'
 import { useMasterchef } from 'hooks/useContract'
+import { useCallback } from 'react'
+import { harvestFarm } from 'utils/farm/calls'
 
 const useHarvestFarm = (farmPid: number) => {
   const masterChefContract = useMasterchef()

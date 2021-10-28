@@ -1,10 +1,7 @@
-import React, { useEffect, useMemo } from 'react'
+import { useActiveWeb3React } from 'hooks'
+import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Text, Flex, Link } from '@rimauswap-libs/uikit'
-import useActiveWeb3React from 'hooks/useActiveWeb3React'
-import { getBscScanLink } from 'utils'
-import useToast from 'hooks/useToast'
-import { useBlockNumber } from '../application/hooks'
+import { useAddPopup, useBlockNumber } from '../application/hooks'
 import { AppDispatch, AppState } from '../index'
 import { checkedTransaction, finalizeTransaction } from './actions'
 
@@ -30,16 +27,17 @@ export function shouldCheck(
 }
 
 export default function Updater(): null {
-  const { library, chainId } = useActiveWeb3React()
+  const { chainId, library } = useActiveWeb3React()
 
   const lastBlockNumber = useBlockNumber()
 
   const dispatch = useDispatch<AppDispatch>()
   const state = useSelector<AppState, AppState['transactions']>((s) => s.transactions)
 
-  const transactions = useMemo(() => (chainId ? state[chainId] ?? {} : {}), [chainId, state])
+  const transactions = chainId ? state[chainId] ?? {} : {}
 
-  const { toastError, toastSuccess } = useToast()
+  // show popup on confirm
+  const addPopup = useAddPopup()
 
   useEffect(() => {
     if (!chainId || !library || !lastBlockNumber) return
@@ -68,17 +66,15 @@ export default function Updater(): null {
                 }),
               )
 
-              const toast = receipt.status === 1 ? toastSuccess : toastError
-              toast(
-                'Transaction receipt',
-                <Flex flexDirection="column">
-                  <Text>{transactions[hash]?.summary ?? `Hash: ${hash.slice(0, 8)}...${hash.slice(58, 65)}`}</Text>
-                  {chainId && (
-                    <Link external href={getBscScanLink(hash, 'transaction', chainId)}>
-                      View on BscScan
-                    </Link>
-                  )}
-                </Flex>,
+              addPopup(
+                {
+                  txn: {
+                    hash,
+                    success: receipt.status === 1,
+                    summary: transactions[hash]?.summary,
+                  },
+                },
+                hash,
               )
             } else {
               dispatch(checkedTransaction({ chainId, hash, blockNumber: lastBlockNumber }))
@@ -88,7 +84,7 @@ export default function Updater(): null {
             console.error(`failed to check transaction hash: ${hash}`, error)
           })
       })
-  }, [chainId, library, transactions, lastBlockNumber, dispatch, toastSuccess, toastError])
+  }, [chainId, library, transactions, lastBlockNumber, dispatch, addPopup])
 
   return null
 }

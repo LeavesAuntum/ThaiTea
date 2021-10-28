@@ -1,15 +1,13 @@
 // Constructing the two forward-slash-separated parts of the 'Add Liquidity' URL
 // Each part of the url represents a different side of the LP pair.
-import { getWbnbAddress } from './addressHelpers'
+// In the URL, using the quote token 'BNB' is represented by 'ETH'
+import { storeNetwork } from 'store/network/useStoreNetwork'
 
-const getLiquidityUrlPathParts = ({ quoteTokenAddress, tokenAddress }) => {
-  const chainId = process.env.REACT_APP_CHAIN_ID
-  const wBNBAddressString = getWbnbAddress()
-  const quoteTokenAddressString: string = quoteTokenAddress ? quoteTokenAddress[chainId] : null
-  const tokenAddressString: string = tokenAddress ? tokenAddress[chainId] : null
-  const firstPart =
-    !quoteTokenAddressString || quoteTokenAddressString === wBNBAddressString ? 'BNB' : quoteTokenAddressString
-  const secondPart = !tokenAddressString || tokenAddressString === wBNBAddressString ? 'BNB' : tokenAddressString
+const getLiquidityUrlPathParts = ({ quoteTokenAdresses, quoteTokenSymbol, tokenAddresses }) => {
+  const { currentChainId } = storeNetwork.getState()
+
+  const firstPart = quoteTokenSymbol === 'BNB' ? 'ETH' : quoteTokenAdresses[currentChainId]
+  const secondPart = tokenAddresses[currentChainId]
   return `${firstPart}/${secondPart}`
 }
 
